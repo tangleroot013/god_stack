@@ -1,14 +1,14 @@
 import asyncio
-import signal
 import sys
 from aiohttp import web
 from utils.queue_manager import RedisQueueManager
+from utils.metrics_exporter import MetricsExporter
 from utils.log_rotator import get_logger
 
 log = get_logger("DaemonCore")
 
 class DaemonCore:
-    def __init__(self, host='0.0.0.0', port=8888, max_concurrent_workers: int = 5):
+    def __init__(self, host='0.0.0.0', port=8888, metrics_port=9090, max_concurrent_workers: int = 5):
         self.broker = RedisQueueManager(host='localhost', port=6379)
         self.max_workers = max_concurrent_workers
         self.semaphore = asyncio.Semaphore(max_concurrent_workers)
@@ -16,6 +16,8 @@ class DaemonCore:
         self.host = host
         self.port = port
         
+        # Initialize metrics exporter matrix
+        self.metrics = MetricsExporter(port=metrics_port)
         self.app = web.Application()
         self.app.add_routes([web.get('/healthz', self.health_check)])
 
@@ -32,37 +34,19 @@ class DaemonCore:
         }
         return web.json_response(data)
 
-    def register_signal_listeners(self):
-        """Attaches handlers for smooth OS-level process termination."""
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
+    async def telemetry_heartbeat_loop(self):
+        """Asynchronous worker loop gathering platform gauges continuously."""
+        while self.running:
             try:
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.initiate_shutdown()))
-            except NotImplementedError:
-                # Fallback for platforms where signal handlers aren't fully implemented in asyncio
-                pass
-
-    async def initiate_shutdown(self):
-        """Orchestrates sequential task completion before process termination."""
-        if not self.running:
-            return
-            
-        log.warning("⚠️ Termination signal caught! Halting consumption and draining worker slots...")
-        self.running = False
-
-        # Calculate currently leased async semaphore execution pipelines
-        active_slots = self.max_workers - self.semaphore._value
-        if active_slots > 0:
-            log.info(f"⏳ In-flight tasks discovered. Waiting for {active_slots} slots to clear...")
-            while self.semaphore._value < self.max_workers:
-                await asyncio.sleep(0.5)
-
-        log.info("🛑 All worker pipelines drained. Mainframe powering down cleanly.")
-        sys.exit(0)
+                self.metrics.measure_redis(self.broker.client)
+                active_count = self.max_workers - self.semaphore._value
+                self.metrics.update_worker_count(active_count)
+            except Exception as e:
+                log.error(f"Error compiling instrumentation metric parameters: {e}")
+            await asyncio.sleep(5)
 
     async def main_loop(self):
-        """Main loop managing application lifecycles and registration."""
-        self.register_signal_listeners()
+        self.metrics.start()
         
         runner = web.AppRunner(self.app)
         await runner.setup()
@@ -70,28 +54,26 @@ class DaemonCore:
         await site.start()
         log.info(f"🏥 Diagnostics listener active at http://{self.host}:{self.port}/healthz")
 
+        # Launch the background gauge updater loop cleanly
+        asyncio.create_task(self.telemetry_heartbeat_loop())
+
         while self.running:
             try:
                 task = self.broker.pop_task(timeout=2)
                 if task:
-                    # Non-blocking async execution handler
-                    asyncio.create_task(self._dummy_worker_slot(task))
+                    asyncio.create_task(self._execute_slotted_task(task))
                 else:
                     await asyncio.sleep(0.5)
             except Exception as e:
-                if self.running:
-                    log.error(f"Polling loop exception: {e}")
-                    await asyncio.sleep(2)
+                log.error(f"Broker connection drop handled: {e}")
+                await asyncio.sleep(2)
 
-    async def _dummy_worker_slot(self, task: dict):
+    async def _execute_slotted_task(self, task: dict):
         async with self.semaphore:
-            log.info(f"⚡ Execution start: {task.get('url')}")
-            await asyncio.sleep(0.5)
-            self.broker.task_complete(task)
-
-if __name__ == "__main__":
-    core = DaemonCore()
-    try:
-        asyncio.run(core.main_loop())
-    except KeyboardInterrupt:
-        pass
+            log.info(f"⚡ Processing task item: {task.get('url')}")
+            try:
+                await asyncio.sleep(0.5)
+                self.broker.task_complete(task)
+                self.metrics.record_job(success=True)
+            except Exception:
+                self.metrics.record_job(success=False)
