@@ -13,9 +13,15 @@ class VaultSyncHandler(BaseHTTPRequestHandler):
             
             try:
                 data = json.loads(payload.decode('utf-8'))
-                log.info(f"💾 Ingested pipeline transaction packet for target: {data.get('url')}")
                 
-                # Respond with a successful transactional handshake
+                # Defensively unpack payloads whether they are dicts or raw primitives
+                if isinstance(data, dict):
+                    target = data.get('url', 'Unknown Source')
+                else:
+                    target = f"Raw Value Layer: {data}"
+                    
+                log.info(f"💾 Ingested pipeline transaction packet for target: {target}")
+                
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -29,7 +35,6 @@ class VaultSyncHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        # Suppress default server access logs to keep terminal streams clean
         return
 
 def run_server():
