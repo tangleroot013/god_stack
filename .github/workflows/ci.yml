@@ -1,0 +1,60 @@
+name: G.O.D. STACK // CORE INTEGRITY MATRIX
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  industrial-verification:
+    runs-on: ubuntu-latest
+
+    # Provision a clean Redis instance for localized queue isolation testing
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout Codebase
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache Pip Dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    # Hydrate test execution requirements cleanly
+    - name: Install System Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest pytest-asyncio redis aiohttp prometheus_client beautifulsoup4
+
+    - name: Structural Style Check (flake8)
+      run: |
+        # Fail immediately on syntax errors, undefined names, or bad tokens
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Enforce code layout constraints across modules
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Execute Automated Unit Test Suite (pytest)
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+      run: |
+        python -m pytest -v tests/
