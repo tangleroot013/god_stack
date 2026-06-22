@@ -1,50 +1,52 @@
 import asyncio
-import os
-import sys
 import logging
+import sys
 from utils.stealth_manager import StealthManager
 from utils.queue_manager import RedisQueueManager
+from utils.log_rotator import get_logger
 
-logging.basicConfig(level=logging.INFO, format="\033[1;36m%(asctime)s\033[0m | \033[1;35m[DAEMON-CLUSTER]\033[0m %(message)s")
-logger = logging.getLogger("DaemonCore")
+log = get_logger("DaemonCore")
 
 class DaemonCore:
     def __init__(self, max_concurrent_workers: int = 3):
         self.stealth = StealthManager()
         self.broker = RedisQueueManager(host='localhost', port=6379)
         self.semaphore = asyncio.Semaphore(max_concurrent_workers)
-        logger.info(f"🚀 G.O.D. Redis Worker Node Active [Capacity: {max_concurrent_workers}]")
+        log.info(f"🚀 Distributed Worker Node online [Concurrency limit: {max_concurrent_workers}]")
 
-    async def run_mission(self, task_data: dict):
-        """Executes a single mission within an isolated concurrency slot."""
+    async def execute_mission(self, task_data: dict):
+        """Processes a single task context within an isolated concurrency slot."""
         async with self.semaphore:
             url = task_data.get('url')
+            meta = task_data.get('meta', {})
+            
+            # Fetch specialized profile configurations per worker request
             identity = self.stealth.dispatch_identity()
-            ua_mask = identity.get('user_agent', 'Unknown-Agent')
+            ua_string = identity.get('user_agent', 'Mozilla/5.0')
 
-            logger.info(f"⚡ Processing mission: {url} | Masking UA: [{ua_mask}]")
+            log.info(f"⚡ Processing: {url} | Agent: [{ua_string}]")
 
             try:
-                # Simulating structural execution block safely for standalone environments
-                await asyncio.sleep(0.5) 
-                logger.info(f"✅ Mission Successful: {url}")
+                # Simulating clean network isolation delay safely
+                await asyncio.sleep(0.5)
+                
+                log.info(f"✅ Mission Successful: {url}")
                 self.broker.task_complete(task_data)
             except Exception as e:
-                logger.error(f"❌ Mission Fault for {url}: {e}")
+                log.error(f"❌ Execution defect encountered on {url}: {e}")
 
     async def main_loop(self):
-        """The infinite heartbeat polling the memory-resident task queue broker."""
-        logger.info("🤖 Awaiting matrix cycles from Redis broker...")
+        """Continuous polling core utilizing atomic BRPOPLPUSH mechanisms."""
+        log.info("🤖 Polling matrix entries from active Redis cluster...")
         while True:
             try:
-                # Reliable atomic pop from pending state queue registers
                 task = self.broker.pop_task(timeout=2)
                 if task:
-                    asyncio.create_task(self.run_mission(task))
+                    asyncio.create_task(self.execute_mission(task))
                 else:
                     await asyncio.sleep(0.5)
             except Exception as e:
-                logger.error(f"Broker connection drop or internal fault: {e}")
+                log.error(f"Broker connection interruption: {e}")
                 await asyncio.sleep(5)
 
 if __name__ == "__main__":
@@ -52,4 +54,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(core.main_loop())
     except KeyboardInterrupt:
-        print("\n🛑 Stopping G.O.D. Worker Node cleanly.")
+        print("\n🛑 Clean shutdown sequence processed by operator.")
+        sys.exit(0)
