@@ -1,44 +1,41 @@
+import random
 import logging
 
 log = logging.getLogger("StealthManager")
 
-# JavaScript executed at page initialization before target scripts execute
-CANVAS_MUTATOR_JS = """
-(() => {
-    if (!window.HTMLCanvasElement) return;
-    
-    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-    const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-
-    // Mutate data serialization paths
-    HTMLCanvasElement.prototype.toDataURL = function(...args) {
-        const ctx = this.getContext('2d');
-        if (ctx) {
-            try {
-                const imgData = originalGetImageData.call(ctx, 0, 0, this.width || 1, this.height || 1);
-                // Introduce a tiny, imperceptible modification to the first pixel channel
-                imgData.data[0] = (imgData.data[0] + 1) % 256;
-                ctx.putImageData(imgData, 0, 0);
-            } catch (e) {
-                // Handle potential cross-origin taint gracefully
-            }
-        }
-        return originalToDataURL.apply(this, args);
-    };
-})();
-"""
-
 class StealthManager:
-    """Orchestrates injection scripts into runtime browser contexts to break tracking telemetry."""
+    """Central intelligence layer for identity masks and hardware noise injection."""
     
-    @staticmethod
-    def apply_hardware_masks(playwright_page) -> bool:
-        """Injects anti-fingerprinting overrides at the document initialization line."""
-        try:
-            # Bind the mutator to fire before any site assets load
-            playwright_page.add_init_script(CANVAS_MUTATOR_JS)
-            log.info("🎨 Stealth hardware masks successfully attached to active page.")
-            return True
-        except Exception as e:
-            log.error(f"Failed to append execution hooks: {e}")
-            return False
+    def __init__(self):
+        self.logger = logging.getLogger("StealthManager")
+
+    def generate_canvas_noise_payload(self) -> str:
+        """
+        Generates a JS payload to inject randomized noise into Canvas rendering.
+        Slightly alters pixel readbacks to unique-ify fingerprint signatures.
+        """
+        r_offset = random.randint(-5, 5)
+        g_offset = random.randint(-5, 5)
+        b_offset = random.randint(-5, 5)
+
+        return f"""
+        (function() {{
+            const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+            CanvasRenderingContext2D.prototype.getImageData = function(x, y, w, h) {{
+                const imageData = originalGetImageData.apply(this, arguments);
+                for (let i = 0; i < imageData.data.length; i += 4) {{
+                    imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + {r_offset}));     // Red
+                    imageData.data[i + 1] = Math.max(0, Math.min(255, imageData.data[i + 1] + {g_offset})); // Green
+                    imageData.data[i + 2] = Math.max(0, Math.min(255, imageData.data[i + 2] + {b_offset})); // Blue
+                }}
+                return imageData;
+            }};
+        }})();
+        """
+
+    def dispatch_identity(self) -> dict:
+        """Generates a synchronized stealth package complete with hardware noise strings."""
+        return {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "canvas_noise": self.generate_canvas_noise_payload()
+        }
