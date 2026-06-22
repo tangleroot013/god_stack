@@ -1,69 +1,62 @@
+import os
 import json
-import hashlib
+import logging
 from pathlib import Path
-from utils.log_rotator import get_logger
 
-log = get_logger("SearchLedger")
+log = logging.getLogger("SearchLedger")
 
 class SearchLedger:
-    METADATA_FILE = Path("/home/tangleroot013/god_stack/.ledger_meta.json")
-
-    def __init__(self, vault_dir: str):
+    """Compiles local index maps using differential scanning logic for fast retrieval."""
+    def __init__(self, vault_dir="/home/tangleroot013/god_stack/outputs/vault"):
         self.vault_dir = Path(vault_dir)
         self.vault_dir.mkdir(parents=True, exist_ok=True)
-        self.index = {}  # inverted memory index mapping: {file_path: token_list}
-        self.metadata = {}
-        self._load_metadata()
+        self.state_file = self.vault_dir / ".state_ledger.json"
+        self.index_cache = {}
+        self.file_states = self._load_state()
 
-    def _load_metadata(self):
-        """Loads state parameters tracking file mutation logs."""
-        if self.METADATA_FILE.is_file():
+    def _load_state(self) -> dict:
+        """Loads historical modification timestamps to facilitate differential scans."""
+        if self.state_file.is_file():
             try:
-                self.metadata = json.loads(self.METADATA_FILE.read_text(encoding="utf-8"))
+                return json.loads(self.state_file.read_text(encoding="utf-8"))
             except Exception as e:
-                log.error(f"Error restoring ledger indices: {e}")
-                self.metadata = {}
+                return {}
+        return {}
 
-    def _save_metadata(self):
-        """Saves current state tracking records cleanly."""
+    def _save_state(self):
+        """Anchors the current vault state metadata to disk."""
         try:
-            self.METADATA_FILE.write_text(json.dumps(self.metadata, indent=2), encoding="utf-8")
+            self.state_file.write_text(json.dumps(self.file_states, indent=2), encoding="utf-8")
         except Exception as e:
-            log.error(f"Failed to persist state ledger profiles: {e}")
+            pass
 
-    def _calculate_checksum(self, path: Path) -> str:
-        """Returns the SHA-256 hash representation of file binaries."""
-        h = hashlib.sha256()
-        h.update(path.read_bytes())
-        return h.hexdigest()
+    def rebuild_index(self) -> int:
+        """Differential scanner: only parses new or modified files."""
+        new_files_indexed = 0
+        
+        if not self.vault_dir.exists():
+            return 0
 
-    def _tokenize(self, text: str) -> list:
-        """Splits raw string representations into distinct structural words."""
-        return [word.strip().lower() for word in text.split() if len(word.strip()) > 1]
+        # Gather target files within vault directory limits
+        current_files = [f for f in os.listdir(self.vault_dir) if f.endswith(".md")]
 
-    def index_file(self, path: Path):
-        """Processes an individual markdown file if it has missing or mutated state profiles."""
-        path = Path(path)
-        if not path.exists():
-            return False
+        for filename in current_files:
+            filepath = self.vault_dir / filename
+            try:
+                mtime = os.path.getmtime(filepath)
+            except OSError:
+                continue
 
-        checksum = self._calculate_checksum(path)
-        path_str = str(path)
+            # Check if the asset timestamp matches file parameters exactly
+            if filename not in self.file_states or mtime > self.file_states[filename]:
+                try:
+                    self.index_cache[filename] = filepath.read_text(encoding="utf-8")
+                    self.file_states[filename] = mtime
+                    new_files_indexed += 1
+                except Exception:
+                    continue
 
-        if self.metadata.get(path_str) == checksum and path_str in self.index:
-            # Short-circuit processing loop if file matches existing structures perfectly
-            return False
-
-        try:
-            text_content = path.read_text(encoding="utf-8")
-            tokens = self._tokenize(text_content)
-            self.index[path_str] = tokens
+        if new_files_indexed > 0:
+            self._save_state()
             
-            # Enforce state update logs
-            self.metadata[path_str] = checksum
-            self._save_metadata()
-            log.info(f"💾 File token structures indexed incrementally: {path.name}")
-            return True
-        except Exception as e:
-            log.error(f"Error building token schema map arrays: {e}")
-            return False
+        return len(self.index_cache)
