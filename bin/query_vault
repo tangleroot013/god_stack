@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import sys
+import argparse
+import json
+from utils.search_ledger import SearchLedger
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="👑 G.O.D. Stack Markdown Vault Query Utility",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("pattern", help="Search keyword or raw Regular Expression")
+    parser.add_argument("-r", "--regex", action="store_true", help="Evaluate query pattern as a raw regex string")
+    parser.add_argument("-j", "--json", action="store_true", help="Output results as structured JSON tokens")
+    
+    args = parser.parse_args()
+    
+    # Initialize internal search ledger engine
+    ledger = SearchLedger()
+    indexed_count = ledger.rebuild_index()
+    
+    if indexed_count == 0:
+        if args.json:
+            print(json.dumps({"error": "Vault is empty or directory missing."}))
+        else:
+            print("\033[1;31m[!] Error: No markdown files found to process inside the vault matrix.\033[0m")
+        sys.exit(1)
+        
+    results = ledger.query(args.pattern, is_regex=args.regex)
+    
+    # Render Output Cycles
+    if args.json:
+        print(json.dumps(results, indent=2))
+    else:
+        print(f"\033[1;32m[+] Query complete. Found {len(results)} matches across {indexed_count} indexed files:\033[0m\n")
+        for match in results:
+            print(f"\033[1;36m📍 Path:\033[0m {match['path']}")
+            print(f"   \033[1;33mHits:\033[0m {match['matches_count']}")
+            print(f"   \033[1;30mPreview:\033[0m {match['preview']}...")
+            print("-" * 60)
+
+if __name__ == "__main__":
+    main()
