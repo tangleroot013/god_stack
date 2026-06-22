@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  mission-control:
+    image: redis:7.2-alpine
+    container_name: god_redis_broker
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+volumes:
+  redis_data:
