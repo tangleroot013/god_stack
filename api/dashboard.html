@@ -1,81 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>G.O.D. STACK // LIVE TELEMETRY MATRIX</title>
-    <style>
-        :root {
-            --neon-purple: #bc13fe; --cyan: #00ffff; --emerald: #50fa7b;
-            --amber: #f1fa8c; --crimson: #ff5555; --bg: #0c0c0c;
-        }
-        body { background: var(--bg); color: var(--cyan); font-family: 'Courier New', monospace; padding: 20px; }
-        .matrix-border { border: 4px double var(--neon-purple); padding: 20px; max-width: 900px; margin: auto; }
-        .header { color: var(--neon-purple); font-weight: bold; text-align: center; margin-bottom: 20px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; border-bottom: 2px solid var(--neon-purple); padding-bottom: 15px; }
-        .stat-item { font-size: 1.1em; }
-        .value { color: var(--emerald); font-weight: bold; }
-        .fault { color: var(--crimson); }
-        #log-ticker { height: 200px; overflow-y: auto; margin-top: 15px; font-size: 0.9em; border-left: 2px solid var(--neon-purple); padding-left: 10px; }
-        .blink { animation: blinker 1s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0; } }
-    </style>
-</head>
-<body>
-    <div class="matrix-border">
-        <div class="header">👑 G.O.D. ASYNC SCRAPING CORE ECOSYSTEM MATRIX</div>
-        <div class="stats-grid">
-            <div class="stat-item">[ACTIVE WORKERS] : <span id="active-workers" class="value">0</span></div>
-            <div class="stat-item">[SUCCESSFUL EXTRACTS] : <span id="success-count" class="value">0</span></div>
-            <div class="stat-item">[QUEUE DEPTH] : <span id="queue-depth" class="value">0</span></div>
-            <div class="stat-item">[TOTAL WEB MAPPED] : <span id="total-mapped" class="value">0</span></div>
-            <div class="stat-item">[SYSTEM STATUS] : <span class="value blink">NOMINAL</span></div>
-        </div>
-        <div id="log-ticker">> INITIALIZING WEBSOCKET HANDSHAKE...</div>
-    </div>
+<div class="panel">
+    <h3>CORE IDENTITY REPUTATION</h3>
+    <table id="identity-table">
+        <thead>
+            <tr><th>JAR_ID</th><th>SUCCESS</th><th>BLOCKS</th><th>STATE</th></tr>
+        </thead>
+        <tbody id="identity-health-body">
+            </tbody>
+    </table>
+</div>
 
-    <script>
-        const ws = new WebSocket('ws://localhost:8889');
-        const ticker = document.getElementById('log-ticker');
-        const counters = { active: 0, success: 0, blocks: 0 };
-
-        ws.onopen = () => {
-            log("[CONNECTED] Handshake validated with MonitorRelay stream.", "amber");
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            
-            if (data.event === 'worker_start') {
-                counters.active++;
-                log(`[DISPATCH] Worker ${data.payload.worker} initiated.`);
-                document.getElementById('active-workers').innerText = counters.active;
-            } else if (data.event === 'worker_success') {
-                counters.active = Math.max(0, counters.active - 1);
-                counters.success++;
-                log(`[SUCCESS] ${data.payload.worker} completed target.`, 'emerald');
-                document.getElementById('active-workers').innerText = counters.active;
-                document.getElementById('success-count').innerText = counters.success;
-            } else if (data.event === 'worker_fault') {
-                counters.active = Math.max(0, counters.active - 1);
-                log(`[FAULT] ${data.payload.worker} blocked: ${data.payload.error}`, 'crimson');
-                document.getElementById('active-workers').innerText = counters.active;
-            } else if (data.event === 'redis_telemetry') {
-                // Live tracking updates pumped straight out of the metrics exporter loops
-                document.getElementById('queue-depth').innerText = data.payload.pending_tasks;
-                document.getElementById('total-mapped').innerText = data.payload.total_mapped;
-            }
-        };
-
-        ws.onclose = () => {
-            log("[DISCONNECTED] Stream server connection dropped.", "crimson");
-        };
-
-        function log(msg, color='cyan') {
-            const entry = document.createElement('div');
-            entry.style.color = `var(--${color})`;
-            entry.innerText = `> ${new Date().toLocaleTimeString()} | ${msg}`;
-            ticker.prepend(entry);
-        }
-    </script>
-</body>
-</html>
+<script>
+// JS Handler for the new identity_health event
+if (data.event === 'identity_health') {
+    const tbody = document.getElementById('identity-health-body');
+    tbody.innerHTML = data.payload.map(id => `
+        <tr class="${id.status.toLowerCase()}">
+            <td>${id.id}</td>
+            <td>${id.success_rate}</td>
+            <td>${id.blocks}</td>
+            <td>[${id.status}]</td>
+        </tr>
+    `).join('');
+}
+</script>
