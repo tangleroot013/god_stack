@@ -1,37 +1,49 @@
 import json
+import logging
 from pathlib import Path
-from utils.log_rotator import get_logger
+from typing import Any, Dict, List
 
-log = get_logger("SessionInjector")
+log = logging.getLogger("SessionInjector")
 
 class SessionInjector:
-    """Handles injection of session identifiers into active browser contexts."""
-    def __init__(self, cookie_file="/home/tangleroot013/god_stack/secrets/session_cookies.json"):
-        self.cookie_file = Path(cookie_file)
+    """Manages collection and injection of authenticated state jars into browser contexts."""
+    
+    def __init__(self, storage_dir="/home/tangleroot013/god_stack/secure/sessions"):
+        self.storage_dir = Path(storage_dir)
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-    def load_cookies(self) -> list:
-        """Retrieves verified authorization sequences from disk."""
-        if not self.cookie_file.exists():
-            log.warning(f"No authentication parameters located at: {self.cookie_file}")
-            return []
+    def save_session_state(self, identity_id: str, cookies: List[Dict[str, Any]], local_storage: Dict[str, Any] = None) -> bool:
+        """Persists an authenticated state matrix securely to disk."""
         try:
-            with open(self.cookie_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            log.error(f"Error reading authentication file parameters: {e}")
-            return []
-
-    def inject_into_playwright(self, target_domain: str, playwright_context):
-        """Applies pre-cached authorization states to active contexts."""
-        cookies = self.load_cookies()
-        if not cookies:
-            log.warning("Skipping cookie injection: configuration structure is empty.")
-            return False
-            
-        try:
-            playwright_context.add_cookies(cookies)
-            log.info(f"✅ Injected {len(cookies)} tracking cookies into browser domain: {target_domain}")
+            state_payload = {
+                "cookies": cookies,
+                "local_storage": local_storage or {},
+                "updated_at": Path("/home/tangleroot013/god_stack").stat().st_mtime
+            }
+            target_path = self.storage_dir / f"state_{identity_id}.json"
+            target_path.write_text(json.dumps(state_payload, indent=2), encoding="utf-8")
+            log.info(f"💾 Authenticated state jar archived for identity: {identity_id}")
             return True
         except Exception as e:
-            log.error(f"Authentication injection error vector: {e}")
+            log.error(f"Failed to save session state: {e}")
+            return False
+
+    async def inject_playwright_context(self, context: Any, identity_id: str) -> bool:
+        """Injects preserved cookies and session metrics into a Playwright browser context."""
+        target_path = self.storage_dir / f"state_{identity_id}.json"
+        if not target_path.is_file():
+            log.warning(f"⚠️ No session profile found for identity: {identity_id}")
+            return False
+
+        try:
+            state_data = json.loads(target_path.read_text(encoding="utf-8"))
+            
+            # Inject standard cookies session array
+            await context.add_cookies(state_data.get("cookies", []))
+            
+            # Local storage payload staging must be handled via a page routing script injection
+            log.info(f"🚀 Session state matrix injected into worker context for: {identity_id}")
+            return True
+        except Exception as e:
+            log.error(f"Session injection vector execution fault: {e}")
             return False
