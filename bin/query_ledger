@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import argparse
+import sys
+import logging
+from utils.search_ledger import SearchLedger
+
+# Configure terminal styling tokens
+CYAN = "\033[1;36m"
+EMERALD = "\033[1;32m"
+AMBER = "\033[1;33m"
+RESET = "\033[0m"
+
+def main():
+    parser = argparse.ArgumentParser(description="G.O.D. Stack Intelligence Retrieval Matrix")
+    parser.add_argument("-q", "--query", type=str, required=True, help="Search term or regex pattern")
+    parser.add_argument("-v", "--vault", type=str, default="/home/tangleroot013/god_stack/outputs/vault", help="Path to the markdown vault")
+    parser.add_argument("-l", "--limit", type=int, default=5, help="Limit results returned")
+    parser.add_argument("-r", "--regex", action="store_true", help="Evaluate query pattern as a raw regex string")
+
+    args = parser.parse_args()
+
+    print(f"{CYAN}🔍 Initiating high-velocity vault extraction for: '{args.query}'{RESET}")
+
+    # Initialize the retrieval engine
+    ledger = SearchLedger(vault_dir=args.vault)
+    ledger.rebuild_index()
+
+    # Execute the query matrix
+    results = ledger.query(args.query, is_regex=args.regex)
+
+    if not results:
+        print(f"{AMBER}⏭️ No intelligence matches found in current sector.{RESET}")
+        return
+
+    print(f"{EMERALD}✅ Matches successfully extracted from the storage matrix:{RESET}\n")
+    
+    # Process results respecting the explicit boundary caps
+    for hit in results[:args.limit]:
+        print(f"📄 {AMBER}Source:{RESET} {hit['path']}")
+        print(f" Hits: {hit['matches_count']}")
+        print(f" 📝 {hit['preview'].strip()}...\n")
+        print("-" * 40)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n{AMBER}⚠️  Retrieval sequence aborted by operator.{RESET}")
+        sys.exit(0)
