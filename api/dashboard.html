@@ -22,11 +22,12 @@
 </head>
 <body>
     <div class="matrix-border">
-        <div class="header">👑 G.O.D. ASYNC SCRAPING CORE ECOSYSTEM MATRIX [v1.15.0]</div>
+        <div class="header">👑 G.O.D. ASYNC SCRAPING CORE ECOSYSTEM MATRIX</div>
         <div class="stats-grid">
             <div class="stat-item">[ACTIVE WORKERS] : <span id="active-workers" class="value">0</span></div>
             <div class="stat-item">[SUCCESSFUL EXTRACTS] : <span id="success-count" class="value">0</span></div>
-            <div class="stat-item">[FIREWALL BLOCKS] : <span id="block-count" class="fault">0</span></div>
+            <div class="stat-item">[QUEUE DEPTH] : <span id="queue-depth" class="value">0</span></div>
+            <div class="stat-item">[TOTAL WEB MAPPED] : <span id="total-mapped" class="value">0</span></div>
             <div class="stat-item">[SYSTEM STATUS] : <span class="value blink">NOMINAL</span></div>
         </div>
         <div id="log-ticker">> INITIALIZING WEBSOCKET HANDSHAKE...</div>
@@ -43,19 +44,26 @@
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            
             if (data.event === 'worker_start') {
                 counters.active++;
                 log(`[DISPATCH] Worker ${data.payload.worker} initiated.`);
+                document.getElementById('active-workers').innerText = counters.active;
             } else if (data.event === 'worker_success') {
                 counters.active = Math.max(0, counters.active - 1);
                 counters.success++;
                 log(`[SUCCESS] ${data.payload.worker} completed target.`, 'emerald');
+                document.getElementById('active-workers').innerText = counters.active;
+                document.getElementById('success-count').innerText = counters.success;
             } else if (data.event === 'worker_fault') {
                 counters.active = Math.max(0, counters.active - 1);
-                counters.blocks++;
                 log(`[FAULT] ${data.payload.worker} blocked: ${data.payload.error}`, 'crimson');
+                document.getElementById('active-workers').innerText = counters.active;
+            } else if (data.event === 'redis_telemetry') {
+                // Live tracking updates pumped straight out of the metrics exporter loops
+                document.getElementById('queue-depth').innerText = data.payload.pending_tasks;
+                document.getElementById('total-mapped').innerText = data.payload.total_mapped;
             }
-            updateUI();
         };
 
         ws.onclose = () => {
@@ -67,12 +75,6 @@
             entry.style.color = `var(--${color})`;
             entry.innerText = `> ${new Date().toLocaleTimeString()} | ${msg}`;
             ticker.prepend(entry);
-        }
-
-        function updateUI() {
-            document.getElementById('active-workers').innerText = counters.active;
-            document.getElementById('success-count').innerText = counters.success;
-            document.getElementById('block-count').innerText = counters.blocks;
         }
     </script>
 </body>
