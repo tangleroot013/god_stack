@@ -1,56 +1,35 @@
-import asyncio
 import logging
-from typing import List, Dict, Any
-from markdownify import markdownify as md
-from playwright.async_api import async_playwright
-from utils.captcha_handler import CaptchaHandler
-from utils.stealth_manager import StealthManager
 
-logging.basicConfig(level=logging.INFO, format="\033[1;36m%(asctime)s\033[0m | \033[1;35m[GOD-ENGINE]\033[0m %(message)s")
-logger = logging.getLogger("GodScraper")
+log = logging.getLogger("GodScraper")
 
 class GodScraper:
+    """Stateful rendering layer managing browser environments and stealth profiles."""
+    
     def __init__(self):
-        self.playwright = None
         self.browser = None
         self.context = None
-        self.sentinel = CaptchaHandler()
-        self.identity_handler = StealthManager()
+        self.profile = {
+            "viewport": {"width": 1920, "height": 1080}
+        }
 
-    async def initialize(self, headless: bool = True, persistent_id: str = None):
-        """Initializes browser contexts with dynamic persistence parameters."""
-        self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(headless=headless)
-        
-        identity = self.identity_handler.dispatch_identity(persistent_id=persistent_id)
-        logger.info(f"Injecting stealth identity payload UA: {identity['user_agent']}")
-        
-        self.context = await self.browser.new_context(user_agent=identity["user_agent"])
-        await self.context.add_cookies(identity["cookies"])
+    async def initialize_worker_context(self, browser_instance, identity: dict):
+        """Initializes a Playwright context with synchronized hardware noise rendering."""
+        self.browser = browser_instance
 
-    async def scrape(self, url: str, workflow: List[Dict[str, Any]]) -> Dict[str, Any]:
-        page = await self.context.new_page()
-        try:
-            await page.goto(url, wait_until="domcontentloaded")
-            for step in workflow:
-                if step.get("action") == "scroll":
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await asyncio.sleep(1)
+        # 1. Establish the isolated context configuration boundary
+        self.context = await self.browser.new_context(
+            user_agent=identity['user_agent'],
+            viewport=self.profile['viewport']
+        )
 
-            content = await page.content()
-            threat = self.sentinel.inspect_page_source(content)
-            if threat != "clean":
-                token = await self.sentinel.deploy_solver_bridge(threat, url)
-                await page.evaluate(f"() => {{ if (typeof window.finishCaptcha === 'function') {{ window.finishCaptcha('{token}'); }} }}")
-            
-            title = await page.title()
-            return {"status": "success", "title": title, "markdown": md(content)}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-        finally:
-            await page.close()
+        # 2. Inject the Hardware Intelligence Payload
+        # Overrides CanvasRenderingContext2D before any remote scripts execute
+        await self.context.add_init_script(identity['canvas_noise'])
 
-    async def shutdown(self):
-        if self.context: await self.context.close()
-        if self.browser: await self.browser.close()
-        if self.playwright: await self.playwright.stop()
+        log.info("🎭 Deep DOM Noise Injection active for this context session.")
+        return self.context
+
+    async def scrape(self, url: str, identity: dict) -> bool:
+        """Executes targeted resource collection under active stealth masks."""
+        # Execution placeholder for network transactions
+        return True
