@@ -1,58 +1,53 @@
 import asyncio
-import logging
 import sys
-from utils.stealth_manager import StealthManager
+from aiohttp import web
 from utils.queue_manager import RedisQueueManager
 from utils.log_rotator import get_logger
 
 log = get_logger("DaemonCore")
 
 class DaemonCore:
-    def __init__(self, max_concurrent_workers: int = 3):
-        self.stealth = StealthManager()
+    def __init__(self, host='0.0.0.0', port=8888, max_concurrent_workers: int = 5):
         self.broker = RedisQueueManager(host='localhost', port=6379)
         self.semaphore = asyncio.Semaphore(max_concurrent_workers)
-        log.info(f"🚀 Distributed Worker Node online [Concurrency limit: {max_concurrent_workers}]")
+        self.host = host
+        self.port = port
+        
+        self.app = web.Application()
+        self.app.add_routes([web.get('/healthz', self.health_check)])
 
-    async def execute_mission(self, task_data: dict):
-        """Processes a single task context within an isolated concurrency slot."""
-        async with self.semaphore:
-            url = task_data.get('url')
-            meta = task_data.get('meta', {})
-            
-            # Fetch specialized profile configurations per worker request
-            identity = self.stealth.dispatch_identity()
-            ua_string = identity.get('user_agent', 'Mozilla/5.0')
+    async def health_check(self, request):
+        """Returns the Redis connection status and active worker metrics."""
+        try:
+            redis_status = "UP" if self.broker.client.ping() else "DOWN"
+        except Exception:
+            redis_status = "DOWN"
 
-            log.info(f"⚡ Processing: {url} | Agent: [{ua_string}]")
+        data = {
+            "status": "NOMINAL" if redis_status == "UP" else "DEGRADED",
+            "redis": redis_status,
+            "workers_pooled": self.semaphore._value
+        }
+        return web.json_response(data)
 
-            try:
-                # Simulating clean network isolation delay safely
-                await asyncio.sleep(0.5)
-                
-                log.info(f"✅ Mission Successful: {url}")
-                self.broker.task_complete(task_data)
-            except Exception as e:
-                log.error(f"❌ Execution defect encountered on {url}: {e}")
+    async def start_health_server(self):
+        """Spins up the internal health checking HTTP listener."""
+        runner = web.AppRunner(self.app)
+        await runner.setup()
+        site = web.TCPSite(runner, self.host, self.port)
+        await site.start()
+        log.info(f"🏥 Health-check server active at http://{self.host}:{self.port}/healthz")
 
     async def main_loop(self):
-        """Continuous polling core utilizing atomic BRPOPLPUSH mechanisms."""
-        log.info("🤖 Polling matrix entries from active Redis cluster...")
+        await self.start_health_server()
+        log.info("🤖 Mainframe Polling Engine initialized and tracking.")
         while True:
-            try:
-                task = self.broker.pop_task(timeout=2)
-                if task:
-                    asyncio.create_task(self.execute_mission(task))
-                else:
-                    await asyncio.sleep(0.5)
-            except Exception as e:
-                log.error(f"Broker connection interruption: {e}")
-                await asyncio.sleep(5)
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    core = DaemonCore(max_concurrent_workers=5)
+    core = DaemonCore()
     try:
         asyncio.run(core.main_loop())
     except KeyboardInterrupt:
-        print("\n🛑 Clean shutdown sequence processed by operator.")
+        print("\n🛑 Shutting down server endpoints cleanly.")
         sys.exit(0)
