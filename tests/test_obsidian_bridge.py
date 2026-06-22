@@ -1,38 +1,36 @@
-import pytest
 import os
 import shutil
+import pytest
 from utils.obsidian_bridge import ObsidianBridge
 
-TMP_SRC = "/tmp/stack_vault_src"
-TMP_DEST = "/tmp/obsidian_vault_dest"
+TMP_SRC = "/tmp/delta_src"
+TMP_DEST = "/tmp/delta_dest"
 
 @pytest.fixture
-def setup_vault_sandboxes():
+def setup_delta_vaults():
     for path in [TMP_SRC, TMP_DEST]:
         if os.path.exists(path): shutil.rmtree(path)
         os.makedirs(path, exist_ok=True)
         
-    with open(os.path.join(TMP_SRC, "intel_node_beta.md"), "w") as f:
-        f.write("# Threat Intel Profile\nTarget: Matrix Engine Vector")
+    # Valid high-density file
+    with open(os.path.join(TMP_SRC, "high_density.md"), "w") as f:
+        f.write("---\ndensity: 0.9\n---\n# Data\nContent here.")
+
+    # Low-density target file to drop
+    with open(os.path.join(TMP_SRC, "low_density.md"), "w") as f:
+        f.write("---\ndensity: 0.4\n---\n# Noise\nIrrelevant dump.")
 
     yield TMP_SRC, TMP_DEST
 
     for path in [TMP_SRC, TMP_DEST]:
         if os.path.exists(path): shutil.rmtree(path)
 
-def test_bridge_mirror_and_moc_generation(setup_vault_sandboxes):
-    src, dest = setup_vault_sandboxes
-    bridge = ObsidianBridge(stack_vault=src, obsidian_vault=dest)
-    
+def test_optimized_sync_logic(setup_delta_vaults):
+    src, dest = setup_delta_vaults
+    bridge = ObsidianBridge(stack_vault=src, obsidian_vault=dest, min_density=0.8)
+
     bridge.sync_payloads()
-    assert os.path.exists(os.path.join(dest, "intel_node_beta.md"))
-    
-    mock_results = [{"path": os.path.join(src, "intel_node_beta.md")}]
-    bridge.create_moc(mock_results, moc_name="Main_MOC")
-    
-    moc_file_path = os.path.join(dest, "Main_MOC.md")
-    assert os.path.exists(moc_file_path)
-    
-    with open(moc_file_path, "r") as f:
-        content = f.read()
-    assert "- [[intel_node_beta]]" in content
+
+    # Check density filter works
+    assert os.path.exists(os.path.join(dest, "high_density.md"))
+    assert not os.path.exists(os.path.join(dest, "low_density.md"))
