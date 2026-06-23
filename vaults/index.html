@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>G.O.D. SYSTEM // LIVE MATRIX GRAPH</title>
+    <title>G.O.D. SYSTEM // CLUSTER MAIN CONTROL</title>
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style type="text/css">
         body {
@@ -11,93 +11,135 @@
             font-family: 'Courier New', monospace;
             margin: 0;
             padding: 20px;
-            overflow: hidden;
         }
         #header {
             border-bottom: 2px solid #00ff66;
             padding-bottom: 10px;
             margin-bottom: 20px;
-            text-shadow: 0 0 10px rgba(0,255,102,0.5);
+        }
+        #main-layout {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            height: 75vh;
         }
         #network-container {
-            width: 100vw;
-            height: 80vh;
+            flex: 2;
             border: 1px dashed #00ff66;
             background-color: #11141a;
         }
-        .footer {
-            margin-top: 10px;
-            font-size: 0.8em;
-            color: #888;
+        #telemetry-panel {
+            flex: 1;
+            border: 1px solid #00ff66;
+            background-color: #080a0d;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 0.85em;
         }
+        .node-alert { color: #ff3333; font-weight: bold; }
+        .node-warn { color: #ffff33; }
+        .node-ok { color: #00ff66; }
     </style>
 </head>
 <body>
 
 <div id="header">
-    <h2>📡 G.O.D. SYSTEM // LIVE HOT-RELOADING ADJACENCY MATRIX</h2>
-    <div>SYSTEM STATUS: STREAMING // WATCHER LINKED // NET_MAP V1.48.0</div>
+    <h2>📡 G.O.D. SYSTEM // UNIFIED STRUCTURAL & LATENCY DASHBOARD</h2>
+    <div>METRICS STATUS: TELEMETRY INJECTED // PIPELINE INTERLOCKED // RELEASE v1.50.0</div>
 </div>
 
-<div id="network-container"></div>
-<div class="footer">⚡ Live monitoring active. Creating new .md targets updates this topology instantly.</div>
+<div id="main-layout">
+    <div id="network-container"></div>
+    <div id="telemetry-panel">
+        <h3>📊 REAL-TIME PROXY ROUTING OVERHEAD</h3>
+        <hr style="border: 1px solid #00ff66;">
+        <div id="telemetry-grid">Awaiting live metrics telemetry cycle...</div>
+    </div>
+</div>
 
 <script type="text/javascript">
     let network = null;
     let lastSignal = null;
 
-    async function renderGraph() {
+    async function updateDashboard() {
         try {
-            const response = await fetch('matrix_map.json?t=' + Date.now());
-            const matrix = await response.json();
+            // Pull tracking logs
+            const [graphRes, telemetryRes] = await Promise.all([
+                fetch('matrix_map.json?t=' + Date.now()),
+                fetch('telemetry_map.json?t=' + Date.now())
+            ]);
             
-            const nodesArray = [];
-            const edgesArray = [];
-            const uniqueNodes = new Set();
-
-            Object.keys(matrix).forEach(source => {
-                uniqueNodes.add(source);
-                matrix[source].forEach(target => {
-                    uniqueNodes.add(target);
-                    edgesArray.push({
-                        from: source, 
-                        to: target, 
-                        arrows: 'to',
-                        color: { color: '#00ff66' }
-                    });
-                });
-            });
-
-            uniqueNodes.forEach(node => {
-                nodesArray.push({
-                    id: node,
-                    label: node,
-                    shape: 'dot',
-                    size: 20,
-                    color: {
-                        background: '#0d0f12',
-                        border: '#00ff66',
-                        highlight: { background: '#00ff66', border: '#ffffff' }
-                    },
-                    font: { color: '#00ff66', face: 'Courier New', size: 14 }
-                });
-            });
-
-            const container = document.getElementById('network-container');
-            const data = {
-                nodes: new vis.DataSet(nodesArray),
-                edges: new vis.DataSet(edgesArray)
-            };
+            const matrix = await graphRes.json();
+            const telData = await telemetryRes.json();
             
-            const options = {
-                physics: { barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 95 } },
-                interaction: { hover: true, dragNodes: true }
-            };
+            // Build the visual topology mesh
+            renderGraphMesh(matrix);
+            
+            // Generate visual side panel console list
+            renderTelemetryGrid(telData);
 
-            network = new vis.Network(container, data, options);
         } catch (err) {
-            console.error("Failed to load map state:", err);
+            console.error("Dashboard update drop:", err);
         }
+    }
+
+    function renderGraphMesh(matrix) {
+        const nodesArray = [];
+        const edgesArray = [];
+        const uniqueNodes = new Set();
+
+        Object.keys(matrix).forEach(source => {
+            uniqueNodes.add(source);
+            matrix[source].forEach(target => {
+                uniqueNodes.add(target);
+                edgesArray.push({ from: source, to: target, arrows: 'to', color: { color: '#00ff66' } });
+            });
+        });
+
+        uniqueNodes.forEach(node => {
+            nodesArray.push({
+                id: node, label: node, shape: 'dot', size: 22,
+                color: { background: '#0d0f12', border: '#00ff66', highlight: '#00ff66' },
+                font: { color: '#00ff66', face: 'Courier New' }
+            });
+        });
+
+        const container = document.getElementById('network-container');
+        const data = { nodes: new vis.DataSet(nodesArray), edges: new vis.DataSet(edgesArray) };
+        const options = { physics: { barnesHut: { centralGravity: 0.2, springLength: 100 } } };
+        
+        // Single instance lock
+        if (!network) {
+            network = new vis.Network(container, data, options);
+        } else {
+            network.setData(data);
+        }
+    }
+
+    function renderTelemetryGrid(data) {
+        const grid = document.getElementById('telemetry-grid');
+        let html = '<table width="100%" border="0" cellspacing="5">';
+        html += '<tr><th>ROUTE</th><th>RTT (ms)</th><th>STATUS</th></tr>';
+
+        Object.keys(data).forEach(src => {
+            Object.keys(data[src]).forEach(dst => {
+                if (src === dst) return;
+                const rtt = data[src][dst];
+                let statusClass = 'node-ok';
+                let tag = 'NOMINAL';
+                
+                if (rtt > 150) { statusClass = 'node-alert'; tag = 'CONGESTED'; }
+                else if (rtt > 50) { statusClass = 'node-warn'; tag = 'OVERHEAD'; }
+
+                html += `<tr>
+                    <td>${src} ➔ ${dst.substring(0,6)}</td>
+                    <td class="${statusClass}">${rtt} ms</td>
+                    <td class="${statusClass}">[${tag}]</td>
+                </tr>`;
+            });
+        });
+        html += '</table>';
+        grid.innerHTML = html;
     }
 
     async function checkRefresh() {
@@ -107,15 +149,15 @@
                 const signal = await res.text();
                 if (signal !== lastSignal) {
                     lastSignal = signal;
-                    await renderGraph();
+                    await updateDashboard();
                 }
             }
-        } catch (e) { /* Server initializing */ }
+        } catch (e) {}
     }
 
-    // Initial render and set hot-poll routine
-    renderGraph();
+    // Hot-polling lifecycle hook
     setInterval(checkRefresh, 1500);
+    updateDashboard();
 </script>
 </body>
 </html>
