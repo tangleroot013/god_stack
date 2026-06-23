@@ -45,7 +45,7 @@
 
 <div id="header">
     <h2>📡 G.O.D. SYSTEM // UNIFIED STRUCTURAL & LATENCY DASHBOARD</h2>
-    <div>METRICS STATUS: TELEMETRY INJECTED // PIPELINE INTERLOCKED // RELEASE v1.50.0</div>
+    <div>METRICS STATUS: LIVE PERF EDGES INJECTED // PIPELINE INTERLOCKED // RELEASE v1.51.0</div>
 </div>
 
 <div id="main-layout">
@@ -63,7 +63,6 @@
 
     async function updateDashboard() {
         try {
-            // Pull tracking logs
             const [graphRes, telemetryRes] = await Promise.all([
                 fetch('matrix_map.json?t=' + Date.now()),
                 fetch('telemetry_map.json?t=' + Date.now())
@@ -72,8 +71,8 @@
             const matrix = await graphRes.json();
             const telData = await telemetryRes.json();
             
-            // Build the visual topology mesh
-            renderGraphMesh(matrix);
+            // Build the visual topology mesh passing telemetry data for dynamic coloring
+            renderGraphMesh(matrix, telData);
             
             // Generate visual side panel console list
             renderTelemetryGrid(telData);
@@ -83,7 +82,7 @@
         }
     }
 
-    function renderGraphMesh(matrix) {
+    function renderGraphMesh(matrix, telData) {
         const nodesArray = [];
         const edgesArray = [];
         const uniqueNodes = new Set();
@@ -92,7 +91,29 @@
             uniqueNodes.add(source);
             matrix[source].forEach(target => {
                 uniqueNodes.add(target);
-                edgesArray.push({ from: source, to: target, arrows: 'to', color: { color: '#00ff66' } });
+                
+                // Determine edge color dynamically based on live latency data
+                let edgeColor = '#00ff66'; // Default Nominal
+                let edgeWidth = 1.5;
+                
+                if (telData[source] && telData[source][target] !== undefined) {
+                    const rtt = telData[source][target];
+                    if (rtt > 150) {
+                        edgeColor = '#ff3333'; // Congested Link
+                        edgeWidth = 3.5;
+                    } else if (rtt > 50) {
+                        edgeColor = '#ffff33'; // Overhead Warning
+                        edgeWidth = 2.5;
+                    }
+                }
+
+                edgesArray.push({ 
+                    from: source, 
+                    to: target, 
+                    arrows: 'to', 
+                    width: edgeWidth,
+                    color: { color: edgeColor, highlight: edgeColor } 
+                });
             });
         });
 
@@ -106,9 +127,10 @@
 
         const container = document.getElementById('network-container');
         const data = { nodes: new vis.DataSet(nodesArray), edges: new vis.DataSet(edgesArray) };
-        const options = { physics: { barnesHut: { centralGravity: 0.2, springLength: 100 } } };
+        const options = { 
+            physics: { barnesHut: { centralGravity: 0.2, springLength: 120 } } 
+        };
         
-        // Single instance lock
         if (!network) {
             network = new vis.Network(container, data, options);
         } else {
@@ -155,7 +177,6 @@
         } catch (e) {}
     }
 
-    // Hot-polling lifecycle hook
     setInterval(checkRefresh, 1500);
     updateDashboard();
 </script>
