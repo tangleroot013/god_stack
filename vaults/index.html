@@ -2,192 +2,83 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>G.O.D. SYSTEM // CLUSTER MAIN CONTROL</title>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <style type="text/css">
+    <title>God Stack // Orchestration Dashboard</title>
+    <style>
         body {
-            background-color: #0d0f12;
-            color: #00ff66;
+            background-color: #0d1117;
+            color: #58a6ff;
             font-family: 'Courier New', monospace;
             margin: 0;
             padding: 20px;
         }
-        #header {
-            border-bottom: 2px solid #00ff66;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        #main-layout {
-            display: flex;
-            gap: 20px;
-            width: 100%;
-            height: 75vh;
-        }
-        #network-container {
-            flex: 2;
-            border: 1px dashed #00ff66;
-            background-color: #11141a;
-        }
-        #telemetry-panel {
-            flex: 1;
-            border: 1px solid #00ff66;
-            background-color: #080a0d;
+        #alert-banner {
+            display: none;
+            background-color: #8b0000;
+            color: #ffcccc;
+            text-align: center;
             padding: 15px;
-            overflow-y: auto;
-            font-size: 0.85em;
+            font-weight: bold;
+            border: 2px solid #ff0000;
+            margin-bottom: 20px;
+            animation: blink 1.5s infinite;
         }
-        .node-alert { color: #ff3333; font-weight: bold; }
-        .node-warn { color: #ffff33; }
-        .node-ok { color: #00ff66; }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        .container {
+            border: 1px solid #30363d;
+            padding: 20px;
+            background-color: #161b22;
+        }
+        h1 { color: #c9d1d9; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+        pre { color: #7ee787; background: #010409; padding: 15px; border-radius: 5px; overflow-x: auto; }
     </style>
 </head>
 <body>
 
-<div id="header">
-    <h2>📡 G.O.D. SYSTEM // UNIFIED STRUCTURAL & LATENCY DASHBOARD</h2>
-    <div>METRICS STATUS: CORE UNIFIED INGESTION FEED // RELEASE v1.53.0</div>
-</div>
+    <div id="alert-banner">🛑 CRITICAL CLUSTER SATURATION: EDGE INGESTION LOCK APPLIED</div>
 
-<div id="main-layout">
-    <div id="network-container"></div>
-    <div id="telemetry-panel">
-        <h3>🔬 WORKER HEALTH & METRICS</h3>
-        <div id="worker-grid">Awaiting worker diagnostic frames...</div>
-        <br>
-        <h3>📊 REAL-TIME PROXY ROUTING OVERHEAD</h3>
-        <hr style="border: 1px solid #00ff66;">
-        <div id="telemetry-grid">Awaiting latency matrix telemetry loop...</div>
+    <div class="container">
+        <h1>Orchestrator Management Matrix (v1.56.0)</h1>
+        <h3>Gateway Status: <span id="gateway-status" style="color: #7ee787;">NOMINAL</span></h3>
+        
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 1;">
+                <h3>Real-Time Health Stream</h3>
+                <pre id="health-raw">Awaiting telemetry frames...</pre>
+            </div>
+        </div>
     </div>
-</div>
 
-<script type="text/javascript">
-    let network = null;
-    let lastSignal = null;
-
-    async function updateDashboard() {
-        try {
-            const res = await fetch('cluster_state.json?t=' + Date.now());
-            const clusterState = await res.json();
-            
-            renderGraphMesh(clusterState.topology, clusterState.latency_matrix);
-            renderTelemetryGrid(clusterState.latency_matrix);
-            renderWorkerGrid(clusterState.worker_diagnostics);
-
-        } catch (err) {
-            console.error("Dashboard update drop:", err);
-        }
-    }
-
-    function renderGraphMesh(topology, latencyMatrix) {
-        const nodesArray = [];
-        const edgesArray = [];
-        const uniqueNodes = new Set();
-
-        Object.keys(topology).forEach(source => {
-            uniqueNodes.add(source);
-            topology[source].forEach(target => {
-                uniqueNodes.add(target);
+    <script>
+        async function updateDashboard() {
+            try {
+                const res = await fetch('/api/health');
+                const data = await res.json();
                 
-                let edgeColor = '#00ff66';
-                let edgeWidth = 1.5;
+                document.getElementById('health-raw').textContent = JSON.stringify(data, null, 4);
                 
-                if (latencyMatrix[source] && latencyMatrix[source][target] !== undefined) {
-                    const rtt = latencyMatrix[source][target];
-                    if (rtt > 150) { edgeColor = '#ff3333'; edgeWidth = 3.5; }
-                    else if (rtt > 50) { edgeColor = '#ffff33'; edgeWidth = 2.5; }
+                const banner = document.getElementById('alert-banner');
+                const statusTxt = document.getElementById('gateway-status');
+                
+                if (data.global_action === "THROTTLE_INGESTION") {
+                    banner.style.display = 'block';
+                    statusTxt.textContent = "SATURATED (BACKPRESSURE ACTIVE)";
+                    statusTxt.style.color = '#ff7b72';
+                } else {
+                    banner.style.display = 'none';
+                    statusTxt.textContent = "NOMINAL";
+                    statusTxt.style.color = '#7ee787';
                 }
-
-                edgesArray.push({ 
-                    from: source, to: target, arrows: 'to', width: edgeWidth,
-                    color: { color: edgeColor, highlight: edgeColor } 
-                });
-            });
-        });
-
-        uniqueNodes.forEach(node => {
-            nodesArray.push({
-                id: node, label: node, shape: 'dot', size: 22,
-                color: { background: '#0d0f12', border: '#00ff66', highlight: '#00ff66' },
-                font: { color: '#00ff66', face: 'Courier New' }
-            });
-        });
-
-        const container = document.getElementById('network-container');
-        const data = { nodes: new vis.DataSet(nodesArray), edges: new vis.DataSet(edgesArray) };
-        const options = { physics: { barnesHut: { centralGravity: 0.2, springLength: 120 } } };
-        
-        if (!network) {
-            network = new vis.Network(container, data, options);
-        } else {
-            network.setData(data);
-        }
-    }
-
-    function renderTelemetryGrid(data) {
-        const grid = document.getElementById('telemetry-grid');
-        let html = '<table width="100%" border="0" cellspacing="5">';
-        html += '<tr><th>ROUTE</th><th>RTT (ms)</th><th>STATUS</th></tr>';
-
-        Object.keys(data).forEach(src => {
-            Object.keys(data[src]).forEach(dst => {
-                if (src === dst) return;
-                const rtt = data[src][dst];
-                let statusClass = 'node-ok';
-                let tag = 'NOMINAL';
-                
-                if (rtt > 150) { statusClass = 'node-alert'; tag = 'CONGESTED'; }
-                else if (rtt > 50) { statusClass = 'node-warn'; tag = 'OVERHEAD'; }
-
-                html += `<tr>
-                    <td>${src} ➔ ${dst.substring(0,6)}</td>
-                    <td class="${statusClass}">${rtt} ms</td>
-                    <td class="${statusClass}">[${tag}]</td>
-                </tr>`;
-            });
-        });
-        html += '</table>';
-        grid.innerHTML = html;
-    }
-
-    function renderWorkerGrid(diagnostics) {
-        const grid = document.getElementById('worker-grid');
-        if (Object.keys(diagnostics).length === 0) {
-            grid.innerHTML = "No worker raw payloads dropped in vaults.";
-            return;
-        }
-        
-        let html = '<table width="100%" border="0" cellspacing="5">';
-        html += '<tr><th>NODE</th><th>QUEUE</th><th>CPU LOAD</th></tr>';
-        
-        Object.keys(diagnostics).forEach(worker => {
-            const data = diagnostics[worker];
-            const loadClass = data.cpu_util > 80 ? 'node-alert' : (data.cpu_util > 50 ? 'node-warn' : 'node-ok');
-            
-            html += `<tr>
-                <td><b>${worker}</b></td>
-                <td class="${loadClass}">${data.queue_depth} jobs</td>
-                <td class="${loadClass}">${data.cpu_util}%</td>
-            </tr>`;
-        });
-        html += '</table>';
-        grid.innerHTML = html;
-    }
-
-    async function checkRefresh() {
-        try {
-            const res = await fetch('.refresh_signal?t=' + Date.now());
-            if (res.ok) {
-                const signal = await res.text();
-                if (signal !== lastSignal) {
-                    lastSignal = signal;
-                    await updateDashboard();
-                }
+            } catch (e) {
+                console.error("Telemetry stream interrupted:", e);
             }
-        } catch (e) {}
-    }
-
-    setInterval(checkRefresh, 1500);
-    updateDashboard();
-</script>
+        }
+        
+        setInterval(updateDashboard, 1000);
+        updateDashboard();
+    </script>
 </body>
 </html>
