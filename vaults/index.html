@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>G.O.D. SYSTEM // INTELLIGENCE VECTOR GRAPH</title>
+    <title>G.O.D. SYSTEM // LIVE MATRIX GRAPH</title>
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style type="text/css">
         body {
@@ -35,24 +35,26 @@
 <body>
 
 <div id="header">
-    <h2>📡 G.O.D. SYSTEM // SEARCHLEDGER GLOBAL ADJACENCY MATRIX</h2>
-    <div>SYSTEM STATUS: ACTIVE // ENGINES LINKED // NET_MAP V1.46.0</div>
+    <h2>📡 G.O.D. SYSTEM // LIVE HOT-RELOADING ADJACENCY MATRIX</h2>
+    <div>SYSTEM STATUS: STREAMING // WATCHER LINKED // NET_MAP V1.48.0</div>
 </div>
 
 <div id="network-container"></div>
-<div class="footer">💡 Drag nodes to manually arrange topology. Scroll to zoom map layers.</div>
+<div class="footer">⚡ Live monitoring active. Creating new .md targets updates this topology instantly.</div>
 
 <script type="text/javascript">
-    async function initGraph() {
+    let network = null;
+    let lastSignal = null;
+
+    async function renderGraph() {
         try {
-            const response = await fetch('matrix_map.json');
+            const response = await fetch('matrix_map.json?t=' + Date.now());
             const matrix = await response.json();
             
             const nodesArray = [];
             const edgesArray = [];
             const uniqueNodes = new Set();
 
-            // Populate mapping primitives
             Object.keys(matrix).forEach(source => {
                 uniqueNodes.add(source);
                 matrix[source].forEach(target => {
@@ -61,7 +63,7 @@
                         from: source, 
                         to: target, 
                         arrows: 'to',
-                        color: { color: '#00ff66', hover: '#ffffff' }
+                        color: { color: '#00ff66' }
                     });
                 });
             });
@@ -88,20 +90,32 @@
             };
             
             const options = {
-                physics: {
-                    barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 95 }
-                },
+                physics: { barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 95 } },
                 interaction: { hover: true, dragNodes: true }
             };
 
-            new vis.Network(container, data, options);
+            network = new vis.Network(container, data, options);
         } catch (err) {
-            document.getElementById('network-container').innerHTML = 
-                `<div style="color:red; padding:20px;">💥 Failed to stream network state: ${err}</div>`;
+            console.error("Failed to load map state:", err);
         }
     }
 
-    initGraph();
+    async function checkRefresh() {
+        try {
+            const res = await fetch('.refresh_signal?t=' + Date.now());
+            if (res.ok) {
+                const signal = await res.text();
+                if (signal !== lastSignal) {
+                    lastSignal = signal;
+                    await renderGraph();
+                }
+            }
+        } catch (e) { /* Server initializing */ }
+    }
+
+    // Initial render and set hot-poll routine
+    renderGraph();
+    setInterval(checkRefresh, 1500);
 </script>
 </body>
 </html>
