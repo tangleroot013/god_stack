@@ -17,12 +17,36 @@ from utils.binary_processor import WorkerBinaryProcessor
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger("UnifiedDaemon")
 
+STATE_FILE = ROOT_DIR / "vaults" / "cluster_state.json"
 ROUTING_MAP_FILE = ROOT_DIR / "vaults" / "optimized_routing.json"
 
 class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
+    def calculate_retry_delay(self):
+        """Calculates expected queue drain time based on worker health frames."""
+        default_delay = 10
+        if not STATE_FILE.exists():
+            return default_delay
+            
+        try:
+            with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            
+            diagnostics = state.get("worker_diagnostics", {})
+            max_queue = 0
+            
+            for worker, stats in diagnostics.items():
+                max_queue = max(max_queue, stats.get("queue_depth", 0))
+            
+            # Assume a safe baseline processing rate of 50 tasks/sec per worker node
+            processing_rate = 50
+            if max_queue > 0:
+                return max(5, min(60, int(max_queue / processing_rate)))
+        except:
+            pass
+        return default_delay
+
     def do_GET(self):
-        """Applies selective path-based backpressure to protect state mutation routes."""
-        # Whitelist critical telemetry UI and health paths from being blocked
+        """Applies path filtering and attaches dynamic retry headers during saturation."""
         telemetry_whitelist = ["/api/health", "/index.html", "/cluster_state.json", "/favicon.ico"]
         
         if ROUTING_MAP_FILE.exists():
@@ -30,20 +54,24 @@ class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
                 with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
                     rules = json.load(f)
                 
-                # Intercept block ONLY if cluster is saturated AND path is NOT whitelisted
                 if rules.get("global_action") == "THROTTLE_INGESTION":
                     if self.path not in telemetry_whitelist and not self.path.startswith("/dist/"):
+                        retry_seconds = self.calculate_retry_delay()
+                        
                         self.send_response(503)
                         self.send_header("Content-Type", "application/json")
+                        self.send_header("Retry-After", str(retry_seconds))
                         self.end_headers()
+                        
                         response = {
                             "error": "CLUSTER_SATURATED", 
-                            "message": f"Ingestion locked for route {self.path}. Read-only telemetry remains online."
+                            "message": "Ingestion locked. Please back off.",
+                            "suggested_retry_backoff_seconds": retry_seconds
                         }
                         self.wfile.write(json.dumps(response).encode())
                         return
             except Exception as e:
-                logger.error(f"Failed to evaluate granular backpressure rules: {e}")
+                logger.error(f"Failed to evaluate dynamic backpressure parameters: {e}")
 
         super().do_GET()
 
@@ -93,7 +121,7 @@ def run_http_server():
     handler = BackpressureHTTPHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8090), handler) as httpd:
-        logger.info("🖥️ Granular Protected Gateway running at http://localhost:8090")
+        logger.info("🖥️ Adaptive Window Gateway running at http://localhost:8090")
         httpd.serve_forever()
 
 if __name__ == "__main__":
