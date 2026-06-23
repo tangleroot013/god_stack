@@ -21,13 +21,29 @@ ROUTING_MAP_FILE = ROOT_DIR / "vaults" / "optimized_routing.json"
 
 class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        """Intercepts requests to apply gateway throttle rules if the cluster is saturated."""
+        """Provides explicit API mapping alongside network security circuit breakers."""
+        # 1. Route API Calls
+        if self.path == "/api/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            
+            rules = {"cluster_healthy": True, "global_action": "NOMINAL"}
+            if ROUTING_MAP_FILE.exists():
+                try:
+                    with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
+                        rules = json.load(f)
+                except:
+                    pass
+            self.wfile.write(json.dumps(rules).encode())
+            return
+
+        # 2. Enforce Backpressure Circuit Breaker on file ingestion boundaries
         if ROUTING_MAP_FILE.exists():
             try:
                 with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
                     rules = json.load(f)
                 
-                # If absolute congestion occurs, block ingestion endpoints
                 if rules.get("global_action") == "THROTTLE_INGESTION" and "cluster_state.json" not in self.path:
                     self.send_response(503)
                     self.send_header("Content-Type", "application/json")

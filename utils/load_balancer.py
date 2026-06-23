@@ -10,12 +10,23 @@ STATE_FILE = PROJECT_ROOT / "vaults" / "cluster_state.json"
 ROUTING_MAP_FILE = PROJECT_ROOT / "vaults" / "optimized_routing.json"
 
 class ClusterOrchestrator:
-    def __init__(self, queue_threshold=1000, cpu_threshold=80.0):
-        self.queue_threshold = queue_threshold
-        self.cpu_threshold = cpu_threshold
+    def __init__(self, high_queue=1000, high_cpu=80.0, low_queue=600, low_cpu=60.0):
+        self.high_queue = high_queue
+        self.high_cpu = high_cpu
+        self.low_queue = low_queue
+        self.low_cpu = low_cpu
+
+    def _get_previous_action(self):
+        if ROUTING_MAP_FILE.exists():
+            try:
+                with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f).get("global_action", "NOMINAL")
+            except:
+                pass
+        return "NOMINAL"
 
     def evaluate_cluster_health(self):
-        """Analyzes cluster_state.json and generates adaptive edge backpressure rules."""
+        """Calculates adaptive state changes using a strict hysteresis buffer."""
         if not STATE_FILE.exists():
             logger.warning("Awaiting cluster state payload generation...")
             return
@@ -25,52 +36,54 @@ class ClusterOrchestrator:
                 state = json.load(f)
 
             diagnostics = state.get("worker_diagnostics", {})
+            previous_action = self._get_previous_action()
             
             routing_overrides = {}
-            unhealthy_nodes = []
-            healthy_alternatives = []
+            unhealthy_count = 0
+            total_workers = len(diagnostics)
+            recovering_nodes = []
 
             for worker, stats in diagnostics.items():
                 q_depth = stats.get("queue_depth", 0)
                 cpu = stats.get("cpu_util", 0.0)
 
-                if q_depth > self.queue_threshold or cpu > self.cpu_threshold:
-                    logger.warning(f"🚨 CRITICAL OVERLOAD: {worker} [Queue: {q_depth}, CPU: {cpu}%]")
-                    unhealthy_nodes.append(worker)
+                # Determine health using memory of previous state (hysteresis)
+                if previous_action == "THROTTLE_INGESTION":
+                    # We are locked down. Node must fall below recovery limits to clear.
+                    if q_depth > self.low_queue or cpu > self.low_cpu:
+                        unhealthy_count += 1
+                    else:
+                        recovering_nodes.append(worker)
                 else:
-                    healthy_alternatives.append(worker)
+                    # System is nominal. Node triggers alert at high threshold.
+                    if q_depth > self.high_queue or cpu > self.high_cpu:
+                        unhealthy_count += 1
 
-            # Determine global pressure state
+            # Determine global pressure state transition rules
             global_action = "NOMINAL"
-            if unhealthy_nodes:
-                if not healthy_alternatives:
-                    # COMPLETE CLUSTER SATURATION PROTOCOL
-                    logger.error("🛑 SYSTEM SATURATED: Zero fallback routes available. Activating Edge Backpressure.")
+            if unhealthy_count > 0:
+                if unhealthy_count == total_workers or total_workers == 1:
                     global_action = "THROTTLE_INGESTION"
-                    for node in unhealthy_nodes:
-                        routing_overrides[node] = {
-                            "status": "SATURATED",
-                            "action": "THROTTLE_INGESTION"
-                        }
+                    logger.error(f"🛑 LOCK DOWN ACTIVE: Cluster saturated. [{unhealthy_count}/{total_workers} workers failed]")
                 else:
-                    # Standard load shedding routing
                     global_action = "SHED_LOAD"
-                    fallback_target = healthy_alternatives[0]
-                    for node in unhealthy_nodes:
-                        routing_overrides[node] = {
-                            "status": "SHEDDING_LOAD",
-                            "divert_target": fallback_target,
-                            "action": "HALT_NEW_INGESTION"
-                        }
-            else:
-                logger.info("🟢 Cluster optimization profiles nominal.")
+            elif previous_action == "THROTTLE_INGESTION" and recovering_nodes:
+                # Part of the cluster dropped below recovery marks, but let's confirm full clearance
+                global_action = "THROTTLE_INGESTION"
+                logger.warning("⏳ COOLING DOWN: Workers draining queues below recovery limits...")
 
-            # Drop instructions for the HTTP Gateway
+            if global_action == "NOMINAL" and previous_action == "THROTTLE_INGESTION":
+                logger.info("🟢 RECOVERY COMPLETE: Cluster states safely normalized. Re-opening edge ingestion gates.")
+
+            # Write instructions to state management file
             with open(ROUTING_MAP_FILE, 'w', encoding='utf-8') as f:
                 json.dump({
-                    "cluster_healthy": len(unhealthy_nodes) == 0,
+                    "cluster_healthy": global_action == "NOMINAL",
                     "global_action": global_action,
-                    "overrides": routing_overrides
+                    "metrics_summary": {
+                        "active_alerts": unhealthy_count,
+                        "recovering_pool": recovering_nodes
+                    }
                 }, f, indent=4)
 
         except Exception as e:
