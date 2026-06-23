@@ -15,7 +15,7 @@ class ClusterOrchestrator:
         self.cpu_threshold = cpu_threshold
 
     def evaluate_cluster_health(self):
-        """Analyzes cluster_state.json and generates real-time traffic routing overrides."""
+        """Analyzes cluster_state.json and generates adaptive edge backpressure rules."""
         if not STATE_FILE.exists():
             logger.warning("Awaiting cluster state payload generation...")
             return
@@ -24,44 +24,52 @@ class ClusterOrchestrator:
             with open(STATE_FILE, 'r', encoding='utf-8') as f:
                 state = json.load(f)
 
-            topology = state.get("topology", {})
             diagnostics = state.get("worker_diagnostics", {})
             
             routing_overrides = {}
             unhealthy_nodes = []
             healthy_alternatives = []
 
-            # Identify node saturation thresholds
             for worker, stats in diagnostics.items():
                 q_depth = stats.get("queue_depth", 0)
                 cpu = stats.get("cpu_util", 0.0)
 
                 if q_depth > self.queue_threshold or cpu > self.cpu_threshold:
-                    logger.warning(f"🚨 CRITICAL OVERLOAD DETECTED: {worker} [Queue: {q_depth}, CPU: {cpu}%]")
+                    logger.warning(f"🚨 CRITICAL OVERLOAD: {worker} [Queue: {q_depth}, CPU: {cpu}%]")
                     unhealthy_nodes.append(worker)
                 else:
                     healthy_alternatives.append(worker)
 
-            # Generate alternative data pathways if saturation occurs
+            # Determine global pressure state
+            global_action = "NOMINAL"
             if unhealthy_nodes:
-                logger.info(f"⚡ Calculating dynamic load-shedding matrix. Healthy fallback vectors: {healthy_alternatives}")
-                
-                # Simple round-robin or fallback target mapping
-                fallback_target = healthy_alternatives[0] if healthy_alternatives else "Broker-Edge"
-                
-                for node in unhealthy_nodes:
-                    routing_overrides[node] = {
-                        "status": "SHEDDING_LOAD",
-                        "divert_target": fallback_target,
-                        "action": "HALT_NEW_INGESTION"
-                    }
+                if not healthy_alternatives:
+                    # COMPLETE CLUSTER SATURATION PROTOCOL
+                    logger.error("🛑 SYSTEM SATURATED: Zero fallback routes available. Activating Edge Backpressure.")
+                    global_action = "THROTTLE_INGESTION"
+                    for node in unhealthy_nodes:
+                        routing_overrides[node] = {
+                            "status": "SATURATED",
+                            "action": "THROTTLE_INGESTION"
+                        }
+                else:
+                    # Standard load shedding routing
+                    global_action = "SHED_LOAD"
+                    fallback_target = healthy_alternatives[0]
+                    for node in unhealthy_nodes:
+                        routing_overrides[node] = {
+                            "status": "SHEDDING_LOAD",
+                            "divert_target": fallback_target,
+                            "action": "HALT_NEW_INGESTION"
+                        }
             else:
-                logger.info("🟢 Cluster optimization profiles nominal. No traffic diversion required.")
+                logger.info("🟢 Cluster optimization profiles nominal.")
 
-            # Atomically drop routing map instructions for the ingestion workers
+            # Drop instructions for the HTTP Gateway
             with open(ROUTING_MAP_FILE, 'w', encoding='utf-8') as f:
                 json.dump({
                     "cluster_healthy": len(unhealthy_nodes) == 0,
+                    "global_action": global_action,
                     "overrides": routing_overrides
                 }, f, indent=4)
 
