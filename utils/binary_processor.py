@@ -1,4 +1,5 @@
 import struct
+import json
 import logging
 from pathlib import Path
 
@@ -8,53 +9,49 @@ logger = logging.getLogger("BinaryProcessor")
 class WorkerBinaryProcessor:
     def __init__(self):
         # Format specifier: 
-        # ! (network/big-endian) H (uint16 ID) I (uint32 Queue) f (float32 CPU) f (float32 RAM)
-        self.payload_format = "!HIf"
-        self.payload_size = struct.calcsize(self.payload_format)
-        # Expected Magic Byte signature: 0x474F4453 (G O D S)
-        self.magic_signature = b"GODS"
+        # 12s -> 12-byte char array (worker_id)
+        # I   -> unsigned int (high_priority_queue)
+        # I   -> unsigned int (standard_queue)
+        # f   -> float32 (cpu_utilization)
+        self.payload_format = "<12sIIf"
+        self.expected_size = struct.calcsize(self.payload_format)
+
+    def pack_payload(self, worker_id: str, high_q: int, std_q: int, cpu_util: float) -> bytes:
+        """Serializes tiered queue diagnostics into a packed binary payload string."""
+        encoded_id = worker_id.encode('utf-8')[:12].ljust(12, b'\x00')
+        return struct.pack(self.payload_format, encoded_id, high_q, std_q, cpu_util)
 
     def unpack_payload(self, file_path: Path) -> dict:
-        """Reads and unpacks low-level binary state segments from a worker node dump."""
+        """Unpacks the dual-lane structural telemetry format into a Python state matrix."""
+        if not file_path.exists():
+            return {"status": "MISSING"}
         try:
-            with open(file_path, "rb") as f:
-                magic = f.read(4)
-                if magic != self.magic_signature:
-                    raise ValueError(f"Invalid binary payload header signature: {magic}")
+            raw_bytes = file_path.read_bytes()
+            if len(raw_bytes) < self.expected_size:
+                return {"status": "CORRUPTED"}
                 
-                raw_data = f.read(self.payload_size)
-                if len(raw_data) < self.payload_size:
-                    raise ValueError("Truncated payload file block.")
-                
-                worker_id, queue_depth, cpu_util = struct.unpack(self.payload_format, raw_data)
-                
-                return {
-                    "status": "VALIDATED",
-                    "worker_id": f"Worker-{worker_id:02d}",
-                    "queue_depth": queue_depth,
-                    "cpu_utilization_pct": round(cpu_util * 100, 2)
-                }
+            w_id, high_q, std_q, cpu_util = struct.unpack(self.payload_format, raw_bytes[:self.expected_size])
+            cleaned_id = w_id.decode('utf-8').rstrip('\x00')
+            
+            return {
+                "status": "VALIDATED",
+                "worker_id": cleaned_id,
+                "priority_queue_depth": high_q,
+                "standard_queue_depth": std_q,
+                "queue_depth": high_q + std_q,  # Combined fallback for backward compatibility
+                "cpu_utilization_pct": round(cpu_util, 2)
+            }
         except Exception as e:
-            logger.error(f"Failed to ingest binary asset {file_path.name}: {e}")
-            return {"status": "CORRUPTED", "error": str(e)}
-
-    def generate_mock_payload(self, output_path: Path, worker_id: int, queue_depth: int, cpu_util: float):
-        """Utility helper to serialize mock node states into raw bytes."""
-        with open(output_path, "wb") as f:
-            f.write(self.magic_signature)
-            f.write(struct.pack(self.payload_format, worker_id, queue_depth, cpu_util))
-        logger.info(f"💾 Synthesized mockup binary payload out to: {output_path.name}")
+            logger.error(f"Binary parsing anomaly on target {file_path.name}: {e}")
+            return {"status": "PARSING_ERROR"}
 
 if __name__ == "__main__":
+    # Test generation to simulate severe cluster saturation with mixed priority lanes
     processor = WorkerBinaryProcessor()
-    mock_file = Path("vaults/worker_00_telemetry.bin")
+    mock_vault = Path(__file__).resolve().parent.parent / "vaults"
+    mock_vault.mkdir(parents=True, exist_ok=True)
     
-    # Ensure vaults folder context exists for standalone verification
-    mock_file.parent.mkdir(exist_ok=True)
-    
-    # Simulate high load queue state on worker 00
-    processor.generate_mock_payload(mock_file, worker_id=0, queue_depth=1420, cpu_util=0.885)
-    
-    # Read back and parse byte segments
-    parsed_metrics = processor.unpack_payload(mock_file)
-    print(f"\n=== 🔬 EXTRACTED BYTE-LEVEL TELEMETRY DATA ===\n{parsed_metrics}\n===============================================")
+    # 1,420 total items: 120 critical real-time updates, 1300 background ingestions
+    packed_data = processor.pack_payload("Worker-00", 120, 1300, 88.50)
+    (mock_vault / "worker_00_telemetry.bin").write_bytes(packed_data)
+    logger.info("💾 Synthesized dual-lane priority binary payload out to: worker_00_telemetry.bin")

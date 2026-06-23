@@ -22,32 +22,23 @@ ROUTING_MAP_FILE = ROOT_DIR / "vaults" / "optimized_routing.json"
 
 class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
     def calculate_dynamic_backoff(self):
-        """Calculates backoff targets using dynamic metrics extracted from the cluster map."""
+        """Calculates expected clearance windows using total unified backlogs."""
         default_delay = 10
-        if not STATE_FILE.exists() or not ROUTING_MAP_FILE.exists():
+        if not STATE_FILE.exists():
             return default_delay
         try:
             with open(STATE_FILE, 'r', encoding='utf-8') as f:
                 state = json.load(f)
-            with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
-                routing = json.load(f)
-                
             diagnostics = state.get("worker_diagnostics", {})
-            drain_rates = routing.get("calculated_drain_rates", {})
-            
-            max_wait = default_delay
+            max_queue = 0
             for worker, stats in diagnostics.items():
-                q_depth = stats.get("queue_depth", 0)
-                rate = drain_rates.get(worker, 50.0) # Graceful fallback to baseline
-                
-                wait_time = int(q_depth / rate) if rate > 0 else default_delay
-                max_wait = max(max_wait, wait_time)
-            return max(5, min(60, max_wait))
+                max_queue = max(max_queue, stats.get("queue_depth", 0))
+            return max(5, min(60, int(max_queue / 50)))
         except:
             return default_delay
 
     def do_GET(self):
-        """Applies tiered traffic shedding by checking incoming header priority metadata."""
+        """Maintains strict prioritized route isolation."""
         telemetry_whitelist = ["/api/health", "/index.html", "/cluster_state.json", "/favicon.ico"]
         
         if ROUTING_MAP_FILE.exists():
@@ -57,12 +48,10 @@ class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
                 
                 if rules.get("global_action") == "THROTTLE_INGESTION":
                     if self.path not in telemetry_whitelist and not self.path.startswith("/dist/"):
-                        # Extract priority token from request headers
                         priority_token = self.headers.get("X-Priority", "Standard")
                         
                         if priority_token == "High":
-                            logger.warning(f"⚡ BYPASS PERMITTED: High-priority token allowed on path: {self.path}")
-                            # Skip 503 circuit breaker block entirely for high-priority traffic
+                            logger.warning(f"⚡ FAST PATH ENGAGED: High-priority task channeled directly to head of processing queue on: {self.path}")
                         else:
                             retry_seconds = self.calculate_dynamic_backoff()
                             self.send_response(503)
@@ -72,13 +61,13 @@ class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
                             
                             response = {
                                 "error": "QUEUE_DEGRADED", 
-                                "message": "Standard ingestion lane locked. High-Priority access required.",
+                                "message": "Standard ingestion lanes blocked. Core queue partitioning active.",
                                 "retry_after_seconds": retry_seconds
                             }
                             self.wfile.write(json.dumps(response).encode())
                             return
             except Exception as e:
-                logger.error(f"Failed to execute tiered backpressure rules: {e}")
+                logger.error(f"Failed to execute partitioned backpressure logic: {e}")
 
         super().do_GET()
 
@@ -104,6 +93,8 @@ class LiveWatcher:
                 if parsed.get("status") == "VALIDATED":
                     w_id = parsed["worker_id"]
                     worker_metrics[w_id] = {
+                        "priority_lane_depth": parsed["priority_queue_depth"],
+                        "standard_lane_depth": parsed["standard_queue_depth"],
                         "queue_depth": parsed["queue_depth"],
                         "cpu_util": parsed["cpu_utilization_pct"]
                     }
@@ -128,7 +119,7 @@ def run_http_server():
     handler = BackpressureHTTPHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8090), handler) as httpd:
-        logger.info("🖥️ Tiered Ingestion Gateway running at http://localhost:8090")
+        logger.info("🖥️ Partitioned Ingestion Gateway running at http://localhost:8090")
         httpd.serve_forever()
 
 if __name__ == "__main__":
