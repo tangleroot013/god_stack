@@ -45,15 +45,18 @@
 
 <div id="header">
     <h2>📡 G.O.D. SYSTEM // UNIFIED STRUCTURAL & LATENCY DASHBOARD</h2>
-    <div>METRICS STATUS: LIVE PERF EDGES INJECTED // PIPELINE INTERLOCKED // RELEASE v1.51.0</div>
+    <div>METRICS STATUS: CORE UNIFIED INGESTION FEED // RELEASE v1.53.0</div>
 </div>
 
 <div id="main-layout">
     <div id="network-container"></div>
     <div id="telemetry-panel">
+        <h3>🔬 WORKER HEALTH & METRICS</h3>
+        <div id="worker-grid">Awaiting worker diagnostic frames...</div>
+        <br>
         <h3>📊 REAL-TIME PROXY ROUTING OVERHEAD</h3>
         <hr style="border: 1px solid #00ff66;">
-        <div id="telemetry-grid">Awaiting live metrics telemetry cycle...</div>
+        <div id="telemetry-grid">Awaiting latency matrix telemetry loop...</div>
     </div>
 </div>
 
@@ -63,55 +66,39 @@
 
     async function updateDashboard() {
         try {
-            const [graphRes, telemetryRes] = await Promise.all([
-                fetch('matrix_map.json?t=' + Date.now()),
-                fetch('telemetry_map.json?t=' + Date.now())
-            ]);
+            const res = await fetch('cluster_state.json?t=' + Date.now());
+            const clusterState = await res.json();
             
-            const matrix = await graphRes.json();
-            const telData = await telemetryRes.json();
-            
-            // Build the visual topology mesh passing telemetry data for dynamic coloring
-            renderGraphMesh(matrix, telData);
-            
-            // Generate visual side panel console list
-            renderTelemetryGrid(telData);
+            renderGraphMesh(clusterState.topology, clusterState.latency_matrix);
+            renderTelemetryGrid(clusterState.latency_matrix);
+            renderWorkerGrid(clusterState.worker_diagnostics);
 
         } catch (err) {
             console.error("Dashboard update drop:", err);
         }
     }
 
-    function renderGraphMesh(matrix, telData) {
+    function renderGraphMesh(topology, latencyMatrix) {
         const nodesArray = [];
         const edgesArray = [];
         const uniqueNodes = new Set();
 
-        Object.keys(matrix).forEach(source => {
+        Object.keys(topology).forEach(source => {
             uniqueNodes.add(source);
-            matrix[source].forEach(target => {
+            topology[source].forEach(target => {
                 uniqueNodes.add(target);
                 
-                // Determine edge color dynamically based on live latency data
-                let edgeColor = '#00ff66'; // Default Nominal
+                let edgeColor = '#00ff66';
                 let edgeWidth = 1.5;
                 
-                if (telData[source] && telData[source][target] !== undefined) {
-                    const rtt = telData[source][target];
-                    if (rtt > 150) {
-                        edgeColor = '#ff3333'; // Congested Link
-                        edgeWidth = 3.5;
-                    } else if (rtt > 50) {
-                        edgeColor = '#ffff33'; // Overhead Warning
-                        edgeWidth = 2.5;
-                    }
+                if (latencyMatrix[source] && latencyMatrix[source][target] !== undefined) {
+                    const rtt = latencyMatrix[source][target];
+                    if (rtt > 150) { edgeColor = '#ff3333'; edgeWidth = 3.5; }
+                    else if (rtt > 50) { edgeColor = '#ffff33'; edgeWidth = 2.5; }
                 }
 
                 edgesArray.push({ 
-                    from: source, 
-                    to: target, 
-                    arrows: 'to', 
-                    width: edgeWidth,
+                    from: source, to: target, arrows: 'to', width: edgeWidth,
                     color: { color: edgeColor, highlight: edgeColor } 
                 });
             });
@@ -127,9 +114,7 @@
 
         const container = document.getElementById('network-container');
         const data = { nodes: new vis.DataSet(nodesArray), edges: new vis.DataSet(edgesArray) };
-        const options = { 
-            physics: { barnesHut: { centralGravity: 0.2, springLength: 120 } } 
-        };
+        const options = { physics: { barnesHut: { centralGravity: 0.2, springLength: 120 } } };
         
         if (!network) {
             network = new vis.Network(container, data, options);
@@ -159,6 +144,30 @@
                     <td class="${statusClass}">[${tag}]</td>
                 </tr>`;
             });
+        });
+        html += '</table>';
+        grid.innerHTML = html;
+    }
+
+    function renderWorkerGrid(diagnostics) {
+        const grid = document.getElementById('worker-grid');
+        if (Object.keys(diagnostics).length === 0) {
+            grid.innerHTML = "No worker raw payloads dropped in vaults.";
+            return;
+        }
+        
+        let html = '<table width="100%" border="0" cellspacing="5">';
+        html += '<tr><th>NODE</th><th>QUEUE</th><th>CPU LOAD</th></tr>';
+        
+        Object.keys(diagnostics).forEach(worker => {
+            const data = diagnostics[worker];
+            const loadClass = data.cpu_util > 80 ? 'node-alert' : (data.cpu_util > 50 ? 'node-warn' : 'node-ok');
+            
+            html += `<tr>
+                <td><b>${worker}</b></td>
+                <td class="${loadClass}">${data.queue_depth} jobs</td>
+                <td class="${loadClass}">${data.cpu_util}%</td>
+            </tr>`;
         });
         html += '</table>';
         grid.innerHTML = html;
