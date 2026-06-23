@@ -39,7 +39,7 @@ class LiveWatcher:
             
             # Vector C: Sweep and Parse Worker Binary Payload Dumps
             worker_metrics = {}
-            for bin_path in self.vaults_dir.glob("*.bin"):
+            for bin_path in self.vaults_dir.glob("worker_*_telemetry.bin"):
                 parsed = self.bin_processor.unpack_payload(bin_path)
                 if parsed.get("status") == "VALIDATED":
                     w_id = parsed["worker_id"]
