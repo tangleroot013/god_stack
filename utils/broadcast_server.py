@@ -21,32 +21,33 @@ STATE_FILE = ROOT_DIR / "vaults" / "cluster_state.json"
 ROUTING_MAP_FILE = ROOT_DIR / "vaults" / "optimized_routing.json"
 
 class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
-    def calculate_retry_delay(self):
-        """Calculates expected queue drain time based on worker health frames."""
+    def calculate_dynamic_backoff(self):
+        """Calculates backoff targets using dynamic metrics extracted from the cluster map."""
         default_delay = 10
-        if not STATE_FILE.exists():
+        if not STATE_FILE.exists() or not ROUTING_MAP_FILE.exists():
             return default_delay
-            
         try:
             with open(STATE_FILE, 'r', encoding='utf-8') as f:
                 state = json.load(f)
-            
+            with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
+                routing = json.load(f)
+                
             diagnostics = state.get("worker_diagnostics", {})
-            max_queue = 0
+            drain_rates = routing.get("calculated_drain_rates", {})
             
+            max_wait = default_delay
             for worker, stats in diagnostics.items():
-                max_queue = max(max_queue, stats.get("queue_depth", 0))
-            
-            # Assume a safe baseline processing rate of 50 tasks/sec per worker node
-            processing_rate = 50
-            if max_queue > 0:
-                return max(5, min(60, int(max_queue / processing_rate)))
+                q_depth = stats.get("queue_depth", 0)
+                rate = drain_rates.get(worker, 50.0) # Graceful fallback to baseline
+                
+                wait_time = int(q_depth / rate) if rate > 0 else default_delay
+                max_wait = max(max_wait, wait_time)
+            return max(5, min(60, max_wait))
         except:
-            pass
-        return default_delay
+            return default_delay
 
     def do_GET(self):
-        """Applies path filtering and attaches dynamic retry headers during saturation."""
+        """Applies tiered traffic shedding by checking incoming header priority metadata."""
         telemetry_whitelist = ["/api/health", "/index.html", "/cluster_state.json", "/favicon.ico"]
         
         if ROUTING_MAP_FILE.exists():
@@ -56,22 +57,28 @@ class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
                 
                 if rules.get("global_action") == "THROTTLE_INGESTION":
                     if self.path not in telemetry_whitelist and not self.path.startswith("/dist/"):
-                        retry_seconds = self.calculate_retry_delay()
+                        # Extract priority token from request headers
+                        priority_token = self.headers.get("X-Priority", "Standard")
                         
-                        self.send_response(503)
-                        self.send_header("Content-Type", "application/json")
-                        self.send_header("Retry-After", str(retry_seconds))
-                        self.end_headers()
-                        
-                        response = {
-                            "error": "CLUSTER_SATURATED", 
-                            "message": "Ingestion locked. Please back off.",
-                            "suggested_retry_backoff_seconds": retry_seconds
-                        }
-                        self.wfile.write(json.dumps(response).encode())
-                        return
+                        if priority_token == "High":
+                            logger.warning(f"⚡ BYPASS PERMITTED: High-priority token allowed on path: {self.path}")
+                            # Skip 503 circuit breaker block entirely for high-priority traffic
+                        else:
+                            retry_seconds = self.calculate_dynamic_backoff()
+                            self.send_response(503)
+                            self.send_header("Content-Type", "application/json")
+                            self.send_header("Retry-After", str(retry_seconds))
+                            self.end_headers()
+                            
+                            response = {
+                                "error": "QUEUE_DEGRADED", 
+                                "message": "Standard ingestion lane locked. High-Priority access required.",
+                                "retry_after_seconds": retry_seconds
+                            }
+                            self.wfile.write(json.dumps(response).encode())
+                            return
             except Exception as e:
-                logger.error(f"Failed to evaluate dynamic backpressure parameters: {e}")
+                logger.error(f"Failed to execute tiered backpressure rules: {e}")
 
         super().do_GET()
 
@@ -121,7 +128,7 @@ def run_http_server():
     handler = BackpressureHTTPHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8090), handler) as httpd:
-        logger.info("🖥️ Adaptive Window Gateway running at http://localhost:8090")
+        logger.info("🖥️ Tiered Ingestion Gateway running at http://localhost:8090")
         httpd.serve_forever()
 
 if __name__ == "__main__":
