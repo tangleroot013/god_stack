@@ -1,62 +1,52 @@
-import os
+import re
 import json
 import logging
 from pathlib import Path
 
-log = logging.getLogger("SearchLedger")
-
 class SearchLedger:
-    """Compiles local index maps using differential scanning logic for fast retrieval."""
-    def __init__(self, vault_dir="/home/tangleroot013/god_stack/outputs/vault"):
-        self.vault_dir = Path(vault_dir)
-        self.vault_dir.mkdir(parents=True, exist_ok=True)
-        self.state_file = self.vault_dir / ".state_ledger.json"
-        self.index_cache = {}
-        self.file_states = self._load_state()
+    """Scans Obsidian-style markdown vaults and generates a relational adjacency matrix."""
+    
+    def __init__(self, vault_path: str = "vaults/intelligence_graph"):
+        self.vault_path = Path(vault_path)
+        self.logger = logging.getLogger("SearchLedger")
+        self.graph = {}
 
-    def _load_state(self) -> dict:
-        """Loads historical modification timestamps to facilitate differential scans."""
-        if self.state_file.is_file():
-            try:
-                return json.loads(self.state_file.read_text(encoding="utf-8"))
-            except Exception as e:
-                return {}
-        return {}
+    def build_ledger(self) -> dict:
+        """Parses all markdown files and extracts [[linked]] relationships."""
+        if not self.vault_path.exists():
+            self.logger.warning(f"Vault path missing. Initializing empty vault at {self.vault_path}")
+            self.vault_path.mkdir(parents=True, exist_ok=True)
+            return self.graph
 
-    def _save_state(self):
-        """Anchors the current vault state metadata to disk."""
-        try:
-            self.state_file.write_text(json.dumps(self.file_states, indent=2), encoding="utf-8")
-        except Exception as e:
-            pass
-
-    def rebuild_index(self) -> int:
-        """Differential scanner: only parses new or modified files."""
-        new_files_indexed = 0
+        self.logger.info(f"🔍 Scanning intelligence vault: {self.vault_path}")
         
-        if not self.vault_dir.exists():
-            return 0
-
-        # Gather target files within vault directory limits
-        current_files = [f for f in os.listdir(self.vault_dir) if f.endswith(".md")]
-
-        for filename in current_files:
-            filepath = self.vault_dir / filename
+        for filepath in self.vault_path.rglob("*.md"):
+            node_name = filepath.stem
             try:
-                mtime = os.path.getmtime(filepath)
-            except OSError:
-                continue
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Extract standard [[wikilinks]] using regex
+                    links = re.findall(r'\[\[(.*?)\]\]', content)
+                    # Deduplicate links and assign to the node
+                    self.graph[node_name] = list(set(links))
+            except Exception as e:
+                self.logger.error(f"Failed to parse node {node_name}: {e}")
 
-            # Check if the asset timestamp matches file parameters exactly
-            if filename not in self.file_states or mtime > self.file_states[filename]:
-                try:
-                    self.index_cache[filename] = filepath.read_text(encoding="utf-8")
-                    self.file_states[filename] = mtime
-                    new_files_indexed += 1
-                except Exception:
-                    continue
+        self.logger.info(f"🌐 Graph compiled: {len(self.graph)} primary nodes mapped.")
+        return self.graph
 
-        if new_files_indexed > 0:
-            self._save_state()
-            
-        return len(self.index_cache)
+    def export_matrix(self, output_file: str = "vaults/matrix_map.json"):
+        """Dumps the adjacency matrix to a standard JSON map."""
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(self.graph, f, indent=4)
+        self.logger.info(f"💾 Relational matrix exported to {output_file}")
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    ledger = SearchLedger()
+    ledger.build_ledger()
+    ledger.export_matrix()
+    
+    print("\n=== 🌐 SEARCH LEDGER ADJACENCY MATRIX ===")
+    print(json.dumps(ledger.graph, indent=2))
+    print("=========================================")

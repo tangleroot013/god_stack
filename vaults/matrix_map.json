@@ -1,0 +1,15 @@
+{
+    "target_alpha": [
+        "Project_Zeus",
+        "Shadow_Broker_Node"
+    ],
+    "Project_Zeus": [
+        "Target_Alpha"
+    ],
+    "Shadow_Broker_Node": [
+        "Project_Zeus"
+    ],
+    "node_alpha_77x": [
+        "node_alpha_77x"
+    ]
+}
