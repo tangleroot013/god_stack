@@ -21,38 +21,29 @@ ROUTING_MAP_FILE = ROOT_DIR / "vaults" / "optimized_routing.json"
 
 class BackpressureHTTPHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        """Provides explicit API mapping alongside network security circuit breakers."""
-        # 1. Route API Calls
-        if self.path == "/api/health":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            
-            rules = {"cluster_healthy": True, "global_action": "NOMINAL"}
-            if ROUTING_MAP_FILE.exists():
-                try:
-                    with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
-                        rules = json.load(f)
-                except:
-                    pass
-            self.wfile.write(json.dumps(rules).encode())
-            return
-
-        # 2. Enforce Backpressure Circuit Breaker on file ingestion boundaries
+        """Applies selective path-based backpressure to protect state mutation routes."""
+        # Whitelist critical telemetry UI and health paths from being blocked
+        telemetry_whitelist = ["/api/health", "/index.html", "/cluster_state.json", "/favicon.ico"]
+        
         if ROUTING_MAP_FILE.exists():
             try:
                 with open(ROUTING_MAP_FILE, 'r', encoding='utf-8') as f:
                     rules = json.load(f)
                 
-                if rules.get("global_action") == "THROTTLE_INGESTION" and "cluster_state.json" not in self.path:
-                    self.send_response(503)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    response = {"error": "CLUSTER_SATURATED", "message": "Backpressure applied. Ingestion halted."}
-                    self.wfile.write(json.dumps(response).encode())
-                    return
+                # Intercept block ONLY if cluster is saturated AND path is NOT whitelisted
+                if rules.get("global_action") == "THROTTLE_INGESTION":
+                    if self.path not in telemetry_whitelist and not self.path.startswith("/dist/"):
+                        self.send_response(503)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        response = {
+                            "error": "CLUSTER_SATURATED", 
+                            "message": f"Ingestion locked for route {self.path}. Read-only telemetry remains online."
+                        }
+                        self.wfile.write(json.dumps(response).encode())
+                        return
             except Exception as e:
-                logger.error(f"Failed to evaluate backpressure rules at gateway: {e}")
+                logger.error(f"Failed to evaluate granular backpressure rules: {e}")
 
         super().do_GET()
 
@@ -102,7 +93,7 @@ def run_http_server():
     handler = BackpressureHTTPHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8090), handler) as httpd:
-        logger.info("🖥️ Adaptive Gateway running at http://localhost:8090")
+        logger.info("🖥️ Granular Protected Gateway running at http://localhost:8090")
         httpd.serve_forever()
 
 if __name__ == "__main__":
