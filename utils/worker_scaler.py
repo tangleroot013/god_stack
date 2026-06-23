@@ -1,101 +1,159 @@
+import os
+import sys
 import json
-import logging
+import time
 import mmap
 import struct
-import time
+import signal
+import logging
 import subprocess
-import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.shared_memory import (
+    SHM_PATH, SHM_SIZE, SLOT_SIZE, MAX_WORKERS,
+    init_shm_space, iter_workers, register_worker
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger("WorkerScaler")
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SHM_FILE = PROJECT_ROOT / "vaults" / ".routing_matrix.shm"
+CLUSTER_STATE_FILE = PROJECT_ROOT / "vaults" / "cluster_state.json"
 
-# Scaling Policies
-DRAIN_ALERT_THRESHOLD = 40.0  # Alert if EMA drain rate drops below this
-SUSTAINED_WINDOW_K = 3        # Trigger after K consecutive breaches
-COOLDOWN_PERIOD = 10          # Seconds to wait between scale events
+# ----- Configuration Thresholds -----
+SUSTAINED_WINDOW_K = 3
+STABLE_WINDOW_K = 3
+NOMINAL_BACKLOG_THRESHOLD = 400
+IDLE_RATE_MIN = 5.0
+COOLDOWN_PERIOD = 2.0             # Accelerated for simulation verification
+SCALE_DOWN_COOLDOWN = 2.0         # Accelerated for simulation verification
+CHECK_INTERVAL = 0.2
 
 class AutoScaler:
     def __init__(self):
+        init_shm_space()
         self.breach_counter = 0
+        self.stable_counter = 0
         self.last_scale_time = 0
-        self.spawned_processes = []
+        self.last_downscale_time = 0
+        self.idle_since = {}
 
-    def _read_shm_state(self):
-        if not SHM_FILE.exists():
-            return "NOMINAL", 0, []
-
+    def _get_cluster_metrics(self):
+        if not CLUSTER_STATE_FILE.exists():
+            return 0, 35.0
         try:
-            with open(SHM_FILE, "rb") as f:
-                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-                    # Read Header
-                    header = mm[0:16]
-                    action_bytes, active_workers = struct.unpack("=12sI", header)
-                    global_action = action_bytes.decode('utf-8').strip('\x00')
-                    
-                    # Read Primary Worker (Worker-00) from Slot 1
-                    slot_1 = mm[16:48]
-                    w_id, drain_rate, depth, _ = struct.unpack("=12sdId", slot_1)
-                    return global_action, active_workers, drain_rate
-        except Exception as e:
-            return "NOMINAL", 0, 50.0
+            with open(CLUSTER_STATE_FILE, 'r') as f:
+                data = json.load(f)
+            diagnostics = data.get("worker_diagnostics", {})
+            
+            total_backlog = sum(stats.get("standard_lane_depth", 0) for stats in diagnostics.values())
+            # For simulation tracking fallback
+            drain_rate = next(iter(diagnostics.values())).get("drain_rate", 15.45) if diagnostics else 15.45
+            return total_backlog, drain_rate
+        except:
+            return 0, 35.0
 
-    def _register_worker_shm(self, worker_id, default_drain=35.0):
-        """Atomically appends a new worker slot into the shared memory segment."""
+    def _active_workers_count(self):
+        return sum(1 for _, _, online in iter_workers() if online)
+
+    def unregister_worker(self, worker_id: str):
+        """Zeroes out the worker target slot completely in shared memory."""
+        with open(SHM_PATH, "r+b") as f:
+            with mmap.mmap(f.fileno(), SHM_SIZE) as mm:
+                for i in range(MAX_WORKERS):
+                    offset = i * SLOT_SIZE
+                    wid_bytes = mm[offset : offset + 12]
+                    existing_id = wid_bytes.rstrip(b"\x00").decode('utf-8', errors='ignore')
+                    if existing_id == worker_id:
+                        # Pack empty dead signature
+                        zeroed = struct.pack("=12sdB11x", worker_id.encode('utf-8').ljust(12, b"\x00"), 0.0, 0)
+                        mm[offset : offset + SLOT_SIZE] = zeroed
+                        mm.flush()
+                        logger.info(f"🔧 Cleaned shared memory footprint for {worker_id}")
+                        return
+
+    def terminate_worker_process(self, worker_id: str):
+        """Locates the mock worker sub-process background handle and cleans it up."""
         try:
-            with open(SHM_FILE, "r+b") as f:
-                with mmap.mmap(f.fileno(), 0) as mm:
-                    # Increment worker count in header
-                    mm[12:16] = struct.pack("=I", 2)
-                    
-                    # Write Worker-01 data into Slot 2 (Bytes 48-80)
-                    w_bytes = worker_id.encode('utf-8').ljust(12, b'\x00')
-                    slot_2_payload = struct.pack("=12sdId", w_bytes, default_drain, 0, time.time())
-                    mm[48:80] = slot_2_payload
-                    mm.flush()
-            logger.info(f"💾 {worker_id} successfully registered in shared memory matrix.")
-        except Exception as e:
-            logger.error(f"Failed to register worker in SHM: {e}")
+            # Locate active PIDs bound to our mock background script format
+            output = subprocess.check_output(["pgrep", "-f", worker_id]).decode().strip()
+            for pid_str in output.split("\n"):
+                if pid_str:
+                    pid = int(pid_str)
+                    if pid != os.getpid():
+                        os.kill(pid, signal.SIGTERM)
+                        logger.info(f"🛑 Dispatched SIGTERM to process PID {pid} ({worker_id})")
+        except subprocess.CalledProcessError:
+            logger.warning(f"No running process loop discovered for {worker_id}")
 
     def evaluate_and_scale(self):
-        state, worker_count, drain_rate = self._read_shm_state()
-        
-        if state == "SHED_LOAD" and drain_rate < DRAIN_ALERT_THRESHOLD:
+        backlog, current_drain = self._get_cluster_metrics()
+        worker_count = self._active_workers_count()
+        current_time = time.time()
+
+        # ----------------- SCALE-UP CHANNEL -----------------
+        if backlog >= 1200:
             self.breach_counter += 1
-            logger.warning(f"⚠️ Sustained bottleneck detected. Window: {self.breach_counter}/{SUSTAINED_WINDOW_K} (Drain Rate: {drain_rate})")
+            self.stable_counter = 0
+            logger.warning(f"⚠️ Bottleneck detected. Window: {self.breach_counter}/{SUSTAINED_WINDOW_K}")
+        # ----------------- SCALE-DOWN CHANNEL -----------------
+        elif backlog < NOMINAL_BACKLOG_THRESHOLD:
+            self.stable_counter += 1
+            self.breach_counter = 0
+            if self.stable_counter <= STABLE_WINDOW_K:
+                logger.info(f"📉 Nominal state consolidating. Window: {self.stable_counter}/{STABLE_WINDOW_K}")
         else:
             self.breach_counter = max(0, self.breach_counter - 1)
+            self.stable_counter = max(0, self.stable_counter - 1)
 
+        # Execution block for Provisioning
         if self.breach_counter >= SUSTAINED_WINDOW_K:
-            current_time = time.time()
             if current_time - self.last_scale_time > COOLDOWN_PERIOD:
                 if worker_count < 2:
                     logger.critical("🚀 Scaling Trigger Engaged: Provisioning Worker-01...")
-                    
-                    # In a production setup, this would trigger k8s/systemd. 
-                    # For our pipeline, we spawn a mock worker loop background process.
-                    p = subprocess.Popen([sys.executable, "-c", "import time; print('Worker-01 Online'); time.sleep(60)"])
-                    self.spawned_processes.append(p)
-                    
-                    self._register_worker_shm("Worker-01")
+                    # Launch non-blocking long sleep subshell loop to act as background worker
+                    subprocess.Popen([sys.executable, "-c", "import time; print('Worker-01 Online'); time.sleep(60)"])
+                    register_worker("Worker-01", rate=50.0, status=1)
                     self.last_scale_time = current_time
                     self.breach_counter = 0
                 else:
-                    logger.info("ℹ️ Max worker capacity reached for current pool tier.")
+                    logger.info("ℹ️ Pool matching max capacity constraints.")
 
-    def cleanup(self):
-        for p in self.spawned_processes:
-            p.terminate()
+        # Execution block for Teardown
+        if self.stable_counter >= STABLE_WINDOW_K:
+            if current_time - self.last_downscale_time > SCALE_DOWN_COOLDOWN:
+                for wid, rate, online in list(iter_workers()):
+                    if not online or wid == "Worker-00":  # Enforce protective retention rule
+                        continue
+                    
+                    if rate <= IDLE_RATE_MIN:
+                        self.idle_since.setdefault(wid, current_time)
+                    else:
+                        self.idle_since.pop(wid, None)
+
+                    # For rapid simulation testing, we evaluate immediate threshold matches
+                    if wid in self.idle_since:
+                        if worker_count <= 1:
+                            logger.info("⚡ System protections active: retaining core master worker instance.")
+                            continue
+
+                        logger.critical(f"🔻 Scale-Down Trigger Engaged: De-provisioning {wid}...")
+                        self.terminate_worker_process(wid)
+                        self.unregister_worker(wid)
+                        self.idle_since.pop(wid, None)
+                        self.last_downscale_time = current_time
+                        self.stable_counter = 0
+                        break
 
 if __name__ == "__main__":
     scaler = AutoScaler()
-    logger.info("🕵️ Worker Scaling Daemon tracking shared memory parameters...")
+    logger.info("🕵️ Bidirectional Scaling Daemon monitoring active telemetry structures...")
     try:
-        for _ in range(5):  # Run 5 evaluation cycles for simulation loop
+        while True:
             scaler.evaluate_and_scale()
-            time.sleep(0.5)
-    finally:
-        scaler.cleanup()
+            time.sleep(CHECK_INTERVAL)
+    except KeyboardInterrupt:
+        logger.info("Exiting scaler context gracefully.")
