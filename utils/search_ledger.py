@@ -25,9 +25,7 @@ class SearchLedger:
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    # Extract standard [[wikilinks]] using regex
                     links = re.findall(r'\[\[(.*?)\]\]', content)
-                    # Deduplicate links and assign to the node
                     self.graph[node_name] = list(set(links))
             except Exception as e:
                 self.logger.error(f"Failed to parse node {node_name}: {e}")
@@ -36,17 +34,21 @@ class SearchLedger:
         return self.graph
 
     def export_matrix(self, output_file: str = "vaults/matrix_map.json"):
-        """Dumps the adjacency matrix to a standard JSON map."""
-        with open(output_file, 'w', encoding='utf-8') as f:
+        """Dumps the adjacency matrix to a standard JSON map and validates the UI asset link."""
+        out_path = Path(output_file)
+        with open(out_path, 'w', encoding='utf-8') as f:
             json.dump(self.graph, f, indent=4)
         self.logger.info(f"💾 Relational matrix exported to {output_file}")
+        
+        # Cross-check front-end asset location
+        ui_file = out_path.parent / "index.html"
+        if ui_file.exists():
+            self.logger.info(f"🖥️  Retro Web UI detected: Open http://localhost:8090 to view fresh map.")
+        else:
+            self.logger.warning("⚠️  Retro Dashboard asset index.html missing from target directory.")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
     ledger = SearchLedger()
     ledger.build_ledger()
     ledger.export_matrix()
-    
-    print("\n=== 🌐 SEARCH LEDGER ADJACENCY MATRIX ===")
-    print(json.dumps(ledger.graph, indent=2))
-    print("=========================================")
