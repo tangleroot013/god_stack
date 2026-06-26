@@ -66,7 +66,7 @@ async def execute_orchestrated_sweep():
     logger.info(f"Target validation matrix established. Running jobs: {len(sanitized_targets)}")
 
     # 3. Fire Asynchronous High Privacy Scraper Engine
-    scraper = GodScraper(profile_name="high_privacy_profile")
+    scraper = GodScraper("stealth_profiles.yaml", "high_privacy_profile")
     try:
         await scraper.initialize(headless=True)
         
