@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-# ==============================================================================
-# G.O.D. ENGINE (god_engine.py)
-# Architecture: Core execution loop tying together sanitization, routing, & stealth
-# ==============================================================================
-
 import asyncio
 import logging
 from utils.url_sanitizer import UrlSanitizer
@@ -26,39 +21,32 @@ class GodEngine:
         self.captcha = CaptchaHandler()
 
     async def process_target(self, raw_url: str) -> dict:
-        """Runs a single URL through the entire defensive pipeline."""
+        """Runs a single URL through the defensive pipeline without blocking the loop."""
         logger.info(f"🚀 Initializing extraction matrix for target: {raw_url}")
         
-        # Phase 1: WHATWG Sanitization
-        sanitized_url = self.sanitizer.normalize(raw_url)
+        # Phase 1 & 2: Offload CPU-heavy URL operations to thread workers
+        sanitized_url = await asyncio.to_thread(self.sanitizer.normalize, raw_url)
         if not sanitized_url:
             logger.error("Target failed sanitization phase. Aborting.")
             return {"status": "failed", "reason": "sanitization_failure"}
 
-        # Phase 2: Frontier Routing & Validation
-        routed_url = self.router.validate_and_clean(sanitized_url)
+        routed_url = await asyncio.to_thread(self.router.validate_and_clean, sanitized_url)
         if not routed_url:
             logger.error("Target rejected by Courlan router filters. Aborting.")
             return {"status": "failed", "reason": "router_rejection"}
 
-        # Phase 3: Simulated Fetch & Threat Detection
+        # Phase 3: Simulated Async Network I/O context switch
         logger.info(f"🌐 Commencing stealth request to: {routed_url}")
-        await asyncio.sleep(0.5) # Simulating network IO
+        await asyncio.sleep(0.5) 
         
-        # Mocking a DOM payload that includes a Captcha trap for testing
         mock_dom = "<html><head><script src='https://challenges.cloudflare.com/turnstile/v0/api.js'></script></head><body>Data</body></html>"
         
-        # Phase 4: Perimeter Defense Check
-        threat_level = self.captcha.inspect_page_source(mock_dom)
+        # Phase 4: Offload synchronous deep regex source parser checks
+        threat_level = await asyncio.to_thread(self.captcha.inspect_page_source, mock_dom)
         if threat_level != "clean":
-            resolved = self.captcha.deploy_solver_bridge(threat_level, routed_url)
+            resolved = await asyncio.to_thread(self.captcha.deploy_solver_bridge, threat_level, routed_url)
             if not resolved:
                 return {"status": "failed", "reason": f"unresolved_{threat_level}_captcha"}
 
         logger.info(f"✅ Target successfully processed and neutralized: {routed_url}")
         return {"status": "success", "url": routed_url, "data": "mock_extracted_payload"}
-
-if __name__ == "__main__":
-    engine = GodEngine()
-    test_url = "HTTPS://EXAMPLE.COM/path/?utm_source=tracker#hash"
-    asyncio.run(engine.process_target(test_url))

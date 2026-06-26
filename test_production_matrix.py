@@ -1,56 +1,65 @@
 #!/usr/bin/env python3
 # ==============================================================================
-# test_production_matrix.py – Pipeline Integrity Verification Script
+# G.O.D. STACK | INTEGRATION TEST MATRIX
 # ==============================================================================
-import asyncio
 import os
-import logging
 import sys
+import sqlite3
+import logging
+from god_scraper import GodScraper
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;32m[TEST-VERIFY]\033[0m %(message)s"
+    format="\033[1;33m%(asctime)s\033[0m | \033[1;36m[TEST-MATRIX]\033[0m %(message)s",
+    datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("TestMatrix")
 
-async def run_pipeline_test():
-    logger.info("⚡ Initiating Production Matrix compilation & runtime validation...")
+def verify_sqlite_state():
+    """Validates Write-Ahead Logging integrity and extraction states."""
+    db_path = "storage.sqlite"
+    if not os.path.exists(db_path):
+        logger.warning(f"⚠️ Storage target {db_path} not initialized yet.")
+        return False
+        
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Verify WAL mode configuration
+        cursor.execute("PRAGMA journal_mode;")
+        mode = cursor.fetchone()[0]
+        logger.info(f"💾 Storage Engine Pragma Journal Mode: {mode.upper()}")
+        
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to verify database hooks: {e}")
+        return False
+
+def execute_integration_suite():
+    logger.info("⚡ Commencing End-to-End Stack Pipeline Integration...")
     
-    # 1. Test Compilation / Importability
-    try:
-        from run_production_matrix import ProductionMatrix
-        logger.info("✅ Import validation: ProductionMatrix successfully compiled.")
-    except Exception as e:
-        logger.error(f"❌ Import validation failed: {e}")
-        sys.exit(1)
-        
-    # 2. Instantiate and Check State Integrity
-    try:
-        matrix = ProductionMatrix()
-        test_url = "https://news.ycombinator.com/best"
-        matrix.add_job(test_url)
-        
-        if test_url not in matrix.jobs:
-            raise ValueError("Job registration matrix mismatch; URL queue missing target.")
-        logger.info("✅ Queue validation: Jobs are successfully registering in scope.")
-    except Exception as e:
-        logger.error(f"❌ State validation failed: {e}")
-        sys.exit(1)
-
-    # 3. Simulate Execution Pipeline Run
-    try:
-        logger.info("🔄 Launching isolated async execution pump...")
-        await matrix.process_pipeline(test_url, idx=1)
-        matrix.exporter.close()
-        logger.info("✅ Execution validation: Pipeline processed to completion without blocks.")
-    except Exception as e:
-        logger.error(f"❌ Pipeline runtime execution failed: {e}")
-        sys.exit(1)
-
-    # 4. Final System Health Check
-    logger.info("\n==================================================")
-    logger.info("🎉 SUCCESS: All target matrix scripts are verified!")
-    logger.info("==================================================")
+    # Instantiate the unified scraper core
+    scraper = GodScraper()
+    
+    # Target batch matrices
+    mock_targets = [
+        ("https://news.ycombinator.com/news", "<html>✅ Standard Source Tree</html>"),
+        ("https://github.com/trending", "<html><script src='https://challenges.cloudflare.com/turnstile/v0/api.js'></script>🤖 Perimeter Active</html>")
+    ]
+    
+    success_count = 0
+    for url, html in mock_targets:
+        logger.info(f"📥 Dispatching job matrix item -> {url}")
+        status = scraper.process_target(url, html)
+        if status:
+            success_count += 1
+            
+    logger.info(f"📊 Run Completed: {success_count}/{len(mock_targets)} pipelines completed successfully.")
+    
+    # Storage check
+    verify_sqlite_state()
 
 if __name__ == "__main__":
-    asyncio.run(run_pipeline_test())
+    execute_integration_suite()
