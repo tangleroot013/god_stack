@@ -18,6 +18,17 @@ services:
     restart: unless-stopped
     volumes:
     - /home/tangleroot013/god_stack/grafana/provisioning:/etc/grafana/provisioning:ro
+  god_host_exporter:
+    image: prom/node-exporter:latest
+    container_name: god_host_exporter
+    command:
+      - '--web.listen-address=0.0.0.0:9100'
+    networks:
+      - god_network
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
   god_prometheus:
     container_name: god_prometheus
     extra_hosts:
