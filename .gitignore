@@ -1,12 +1,7 @@
-# Python Environment & Cache
 __pycache__/
 *.py[cod]
-*$py.class
 .venv/
 venv/
-sitecustomize.py.bak
-
-# Databases & Local Telemetry
 *.sqlite
 storage/
 logs/
@@ -15,11 +10,4 @@ outputs/
 datasets/
 vaults/*
 !vaults/index.html
-
-# Configurations & Backups
 .env
-vaults/*.tar.gz
-config/backups/
-
-# System Overlays
-.DS_Store
