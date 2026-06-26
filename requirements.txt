@@ -1,3 +1,4 @@
 courlan>=2.3.3
 aiohttp>=3.8.0
 courlan
+httpx
