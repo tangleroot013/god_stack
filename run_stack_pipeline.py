@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # =============================================================================
 # G.O.D. STACK v2.0 CENTRAL PIPELINE CORE (run_stack_pipeline.py)
-# Architecture: Defensive Orchestration, Proxy Injection & Async Playwright Execution
+# Architecture: Defensive Orchestration, Multi-Path Local Import Adjustments
 # =============================================================================
 
 import asyncio
@@ -9,14 +9,28 @@ import logging
 import sys
 import os
 
-# Ensure local modules can be loaded properly
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Ensure project root AND utils subdirectory are included in the module lookups
+base_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(base_dir)
+sys.path.append(os.path.join(base_dir, "utils"))
 
-from scavenger import ProxyScavenger
-from courlan_router import CourlanRouter
-from god_scraper import GodScraper
+# Dynamic import resolution falling back to internal subfolders
+try:
+    from courlan_router import CourlanRouter
+except ImportError:
+    from utils.courlan_router import CourlanRouter
 
-# Enforce crisp terminal logging output profiles
+try:
+    from scavenger import ProxyScavenger
+except ImportError:
+    from utils.scavenger import ProxyScavenger
+
+try:
+    from god_scraper import GodScraper
+except ImportError:
+    from utils.god_scraper import GodScraper
+
+# Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format="\033[1;36m%(asctime)s\033[0m | \033[1;32m[PIPELINE-CORE]\033[0m %(message)s",
@@ -58,7 +72,6 @@ async def execute_orchestrated_sweep():
         
         for target in sanitized_targets:
             logger.info(f"Deploying browser core context to target: {target}")
-            # Optional: Pass proxy configuration to the scraper context here if desired
             result = await scraper.scrape(url=target, workflow=[{"action": "scroll"}])
             
             if result.get("status") == "success":
