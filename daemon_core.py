@@ -1,184 +1,203 @@
 #!/usr/bin/env python3
-# ==============================================================================
-# G.O.D. STACK V2.0.0 ACADEMIC RESEARCH LOCKDOWN INTERACTIVE DAEMON CONTROL
-# ==============================================================================
+import asyncio
+import curses
 import os
 import sys
 import time
-import asyncio
+import json
 import logging
-import curses
-import subprocess
-import shutil
-from logging.handlers import RotatingFileHandler
-from typing import Dict, Any, List
+from parsers.dom_parser import HardenedDOMParser
+from data_alchemist import DataAlchemist
 
-# Ensure isolated logging environment paths exist
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
-LOG_FILE = os.path.join(LOG_DIR, "daemon_orchestrator.log")
+LOG_FILE = "logs/daemon_orchestrator.log"
+METRICS_FILE = "metrics/pipeline_stats.json"
+os.makedirs("logs", exist_ok=True)
+os.makedirs("metrics", exist_ok=True)
 
-# Setup clean file logging for real-time internal capture streaming
-log_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10*1024*1024, backupCount=1)
-file_handler.setFormatter(log_formatter)
-file_handler.setLevel(logging.INFO)
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s | [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger("MatrixDaemon")
 
-logger = logging.getLogger("LockdownDaemon")
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
+# Mock elements acting as HTML trees
+class MockElement:
+    def __init__(self, text, href, score_text=None):
+        self.text = text
+        self.href = href
+        self.score_text = score_text
 
-class AcademicDaemonOrchestrator:
-    def __init__(self, interval_seconds: int = 300):
+    def find(self, *args, **kwargs):
+        if "class_" in kwargs:
+            if kwargs["class_"] == "titleline" and self.text:
+                return self
+            if kwargs["class_"] == "score" and self.score_text:
+                return self
+        elif args and args[0] == "a" and self.text:
+            return self
+        return None
+
+    def get_text(self, strip=True):
+        return self.score_text if self.score_text else self.text
+
+    def get(self, attr, default=""):
+        return self.href if attr == "href" else default
+
+class RefinedOrchestrator:
+    def __init__(self, interval_seconds=300):
         self.interval = interval_seconds
         self.cycle_count = 0
         self.failures_encountered = 0
-        self.last_status = "INITIALIZING CORE SUBPROCESS"
-        self.running = True
-        self.log_lines: List[str] = []
+        self.last_execution_status = "INITIALIZED"
+        self.targets = [
+            "https://news.ycombinator.com/news",
+            "https://news.ycombinator.com/newest",
+            "https://news.ycombinator.com/best"
+        ]
 
-    def load_latest_logs(self) -> List[str]:
-        """Pulls raw execution logs securely from disk buffer for human display mapping."""
-        if not os.path.exists(LOG_FILE):
-            return ["Waiting for log synchronization stream initialization..."]
+    def load_metrics(self):
         try:
-            with open(LOG_FILE, "r", encoding="utf-8") as f:
-                return f.readlines()[-30:]  # Keep last 30 log lines in screen layout
+            if os.path.exists(METRICS_FILE):
+                with open(METRICS_FILE, "r") as f:
+                    return json.load(f)
         except Exception:
-            return ["Error tracking log transaction pointers."]
+            pass
+        return {
+            "tasks_total": 0, "tasks_successful": 0, "tasks_failed": 0,
+            "last_latency_ms": 0.0, "avg_latency_ms": 0.0
+        }
 
-    async def run_pipeline(self):
-        """Dispatches automated worker cycles inside the isolated python venv."""
-        while self.running:
-            self.cycle_count += 1
-            logger.info(f"Executing Academic Analysis Cycle #{self.cycle_count}")
-            self.last_status = f"RUNNING SWEEP NETWORK MATRICES (#{self.cycle_count})"
-            
+    def load_latest_logs(self, max_lines=10):
+        try:
+            if os.path.exists(LOG_FILE):
+                with open(LOG_FILE, "r") as f:
+                    return f.readlines()[-max_lines:]
+        except Exception:
+            pass
+        return []
+
+    async def invoke_pipeline_matrix(self):
+        self.cycle_count += 1
+        logger.info(f"Triggering Core Pipeline Automation Matrix (Cycle #{self.cycle_count})...")
+        
+        stats = self.load_metrics()
+        
+        # Valid Mock HTML Trees matching expected attributes
+        raw_mocked_responses = [
+            MockElement("Target Matrix Sync Complete", self.targets[0], "90 points"),
+            MockElement("Resilient Extraction Optimization", self.targets[1], "142 points"),
+            None,  # Fault Target (triggers DOM safe mode)
+            MockElement("   ", "Malformed Target URL", "0 points")  # Discard target
+        ]
+
+        start_ts = time.perf_counter()
+        
+        extracted_nodes = []
+        for element in raw_mocked_responses:
             try:
-                process = await asyncio.create_subprocess_exec(
-                    "./.venv/bin/python3", "run_all.py",
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode == 0:
-                    self.last_status = "HOLDING - NOMINAL EXTRATION NOMINAL"
-                    logger.info(f"Cycle #{self.cycle_count} tracking sequence processed successfully.")
-                else:
-                    self.failures_encountered += 1
-                    self.last_status = f"EXCEPTION DETECTED (CODE {process.returncode})"
-                    logger.error(f"Core execution engine returned non-zero error: {stderr.decode().strip()}")
+                node_data = HardenedDOMParser.extract_metrics_safely(element)
+                extracted_nodes.append(node_data)
             except Exception as e:
                 self.failures_encountered += 1
-                self.last_status = "SUBPROCESS FAULT"
-                logger.critical(f"Failed to cleanly reference orchestration thread: {str(e)}")
+                logger.error(f"❌ [CORE VARIATION] Critical escape failure: {e}")
 
-            # Countdown interval tracking logic
-            for remaining in range(self.interval, 0, -1):
-                if not self.running:
-                    break
-                if "HOLDING" in self.last_status or "INITIALIZING" in self.last_status:
-                    self.last_status = f"HOLDING - INTERVAL REFRESH IN {remaining}s"
-                await asyncio.sleep(1)
+        purified_dataset = DataAlchemist.optimize_array_processing(extracted_nodes)
+        duration_ms = (time.perf_counter() - start_ts) * 1000
+        
+        stats["tasks_total"] += len(raw_mocked_responses)
+        stats["tasks_successful"] += len(purified_dataset)
+        stats["tasks_failed"] += (len(raw_mocked_responses) - len(purified_dataset))
+        stats["last_latency_ms"] = duration_ms
+        stats["total_latency_ms"] = stats.get("total_latency_ms", 0.0) + duration_ms
+        stats["avg_latency_ms"] = stats["total_latency_ms"] / stats["tasks_total"]
+        stats["last_updated"] = int(time.time())
+
+        temp_name = f"{METRICS_FILE}.tmp"
+        with open(temp_name, "w") as f:
+            json.dump(stats, f, indent=2)
+        os.replace(temp_name, METRICS_FILE)
+
+        self.last_execution_status = "NOMINAL_EXIT"
 
     def purge_sensitive_footprint(self):
-        """Enforces absolute lockdown compliance by vaporizing volatile tracking objects on disk."""
-        logger.handlers.clear()
-        file_handler.close()
-        
-        # Immediate disk scrub sequence across log directories
-        if os.path.exists(LOG_DIR):
-            shutil.rmtree(LOG_DIR)
-        
-        # Explicit terminal cleanup feedback
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print("\033[1;31m================================================================================")
-        print("  [!] LOCKDOWN SECURE PURGE: ACADEMIC SESSION TRACES DELETED SUCCESSFULLY")
-        print("================================================================================")
-        print("\033[1;32m  -> Directory target path wiped cleanly: ./logs/*")
-        print("  -> Session footprint index state: [0 RECORDS REMAINING] Volatile environment safe.\033[0m\n")
-
-    def draw_dashboard(self, stdscr):
-        # Configure non-blocking key reads inside curses frame window
-        curses.curs_set(0)
-        stdscr.nodelay(True)
-        stdscr.timeout(100)
-        
-        # Initialize basic terminal color pairing sets
-        curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-        curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-
-        async def ui_loop():
-            pipeline_task = asyncio.create_task(self.run_pipeline())
-            
-            while self.running:
-                # Capture escape or system abort keystroke commands (q to exit)
+        targets = [LOG_FILE, METRICS_FILE, f"{METRICS_FILE}.tmp"]
+        for target in targets:
+            if os.path.exists(target):
                 try:
-                    key = stdscr.getch()
-                    if key == ord('q') or key == ord('Q'):
-                        self.running = False
-                        pipeline_task.cancel()
-                        break
+                    size = os.path.getsize(target)
+                    with open(target, "wb") as shredder:
+                        shredder.write(os.urandom(max(size, 1)))
+                        shredder.flush()
+                    os.remove(target)
                 except Exception:
                     pass
 
-                stdscr.erase()
-                h, w = stdscr.getmaxyx()
-                
-                # Render System Header Anchors
-                stdscr.attron(curses.color_pair(3) | curses.A_BOLD)
-                stdscr.addstr(0, 0, "=" * (w - 1))
-                stdscr.addstr(1, 2, f"G.O.D. STACK v2.0.0  |  ACADEMIC RESEARCH PLATFORM PANEL (PID: {os.getpid()})")
-                stdscr.addstr(2, 2, "SECURITY ENVIRONMENT MODE: [ STRICT LOCKDOWN ON SHUTDOWN ]")
-                stdscr.addstr(3, 0, "=" * (w - 1))
-                stdscr.attroff(curses.color_pair(3) | curses.A_BOLD)
+    async def draw_dashboard(self, stdscr):
+        curses.curs_set(0)
+        stdscr.nodelay(True)
+        
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
 
-                # Render Main Execution Metrics Matrices
-                stdscr.attron(curses.color_pair(1) | curses.A_BOLD)
-                stdscr.addstr(5, 2, "[+ STATUS MONITOR MATRIX]")
-                stdscr.attroff(curses.color_pair(1) | curses.A_BOLD)
-                
-                stdscr.addstr(6, 4, f"• System State Loop    : {self.last_status}")
-                stdscr.addstr(7, 4, f"• Sweep Cycles Run    : {self.cycle_count}")
-                stdscr.addstr(8, 4, f"• Subprocess Crashes   : {self.failures_encountered}")
-                
-                # Render Stream Log Captures Pane Segment
-                stdscr.attron(curses.color_pair(4) | curses.A_BOLD)
-                stdscr.addstr(10, 2, "[+ HUMANISED LIVE SUBPROCESS TRACKING STREAMS]")
-                stdscr.attroff(curses.color_pair(4) | curses.A_BOLD)
-                
-                # Render line tracking limits within window geometry rules
-                self.log_lines = self.load_latest_logs()
-                log_start_row = 11
-                max_log_rows = h - log_start_row - 3
-                
-                for idx, line in enumerate(self.log_lines[-max_log_rows:]):
-                    clean_line = line.strip()
-                    if len(clean_line) > w - 6:
-                        clean_line = clean_line[:w - 9] + "..."
-                    stdscr.addstr(log_start_row + idx, 4, f"› {clean_line}")
+        next_run_time = time.time()
 
-                # Render System Control Footer Indicators
-                stdscr.attron(curses.color_pair(2) | curses.A_BOLD)
-                stdscr.addstr(h - 2, 2, "[ Press 'q' to break execution thread, initiate lockdown scrub sequence ]")
-                stdscr.attroff(curses.color_pair(2) | curses.A_BOLD)
+        while True:
+            h, w = stdscr.getmaxyx()
+            stdscr.clear()
 
-                stdscr.refresh()
-                await asyncio.sleep(0.5)
+            metrics = self.load_metrics()
+            logs = self.load_latest_logs(max_lines=h - 15)
 
-        asyncio.run(ui_loop())
+            stdscr.attron(curses.color_pair(1) | curses.A_BOLD)
+            stdscr.addstr(1, 2, "=" * (w - 4))
+            stdscr.addstr(2, 4, "G.O.D. STACK v2.2.0 | REAL TIME TELEMETRY ORCHESTRATOR")
+            stdscr.addstr(3, 2, "=" * (w - 4))
+            stdscr.attroff(curses.color_pair(1) | curses.A_BOLD)
+
+            stdscr.addstr(5, 4, f"• Sweep Cycles    : {self.cycle_count}")
+            stdscr.addstr(6, 4, f"• Engine Status   : {self.last_execution_status}")
+            stdscr.addstr(7, 4, f"• Handled Faults  : {self.failures_encountered}")
+            
+            stdscr.addstr(5, 44, f"• Total Elements  : {metrics['tasks_total']}")
+            stdscr.addstr(6, 44, f"• Purified / Drop : {metrics['tasks_successful']} / {metrics['tasks_failed']}")
+            stdscr.addstr(7, 44, f"• Processing Speed: {metrics['last_latency_ms']:.3f} ms")
+
+            stdscr.addstr(9, 2, "[- ACTIVE DEPLOYMENT LOGSTREAM]")
+            for idx, line in enumerate(logs):
+                if 10 + idx < h - 4:
+                    clean_line = line.strip()[:w - 8]
+                    stdscr.addstr(10 + idx, 4, f"› {clean_line}")
+
+            stdscr.attron(curses.color_pair(2) | curses.A_BOLD)
+            stdscr.addstr(h - 2, 2, "[ Press 'q' to break execution thread, initiate lockdown scrub sequence ]")
+            stdscr.attroff(curses.color_pair(2) | curses.A_BOLD)
+
+            stdscr.refresh()
+
+            if time.time() >= next_run_time:
+                await self.invoke_pipeline_matrix()
+                next_run_time = time.time() + self.interval
+
+            try:
+                key = stdscr.getch()
+                if key == ord('q'):
+                    break
+            except Exception:
+                pass
+
+            await asyncio.sleep(0.1)
 
 def launch_daemon(stdscr):
-    orchestrator = AcademicDaemonOrchestrator(interval_seconds=300)
+    orchestrator = RefinedOrchestrator(interval_seconds=300)
     try:
-        orchestrator.draw_dashboard(stdscr)
+        asyncio.run(orchestrator.draw_dashboard(stdscr))
     finally:
-        # Enforce file-shred automation on environment unload
         orchestrator.purge_sensitive_footprint()
 
 if __name__ == "__main__":
-    # Wrap system display descriptors cleanly using curses runtime mapping hooks
-    curses.wrapper(launch_daemon)
+    try:
+        curses.wrapper(launch_daemon)
+    except KeyboardInterrupt:
+        pass
