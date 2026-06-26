@@ -1,60 +1,73 @@
 #!/usr/bin/env python3
 # ==============================================================================
-# run_production_matrix.py – High-Performance Matrix with Back-Pressure & Telemetry
+# G.O.D. STACK | FULL INGESTION -> PARSING -> STORAGE -> TELEMETRY MATRICES
 # ==============================================================================
-import asyncio
 import time
 import logging
-import random
-from utils.metrics_bridge import telemetry
+from god_scraper import GodScraper
+from parsers.content_extractor import ContentExtractor
+from data_storage_sync import StorageSyncEngine
+import metrics_exporter
 
-# Setup structural logging
-logging.basicConfig(level=logging.INFO, format="[MATRIX] %(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("MatrixEngine")
+logging.basicConfig(
+    level=logging.INFO,
+    format="\033[1;35m%(asctime)s\033[0m | \033[1;32m[MATRIX-E2E]\033[0m %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger("MatrixE2E")
 
-class ProductionMatrix:
-    def __init__(self, max_concurrency=5):
-        # Fix 2 & 3: Limit parallel workers using a Semaphore pattern
-        self.semaphore = asyncio.Semaphore(max_concurrency)
-        self.targets = [
-            "https://news.ycombinator.com/news",
-            "https://news.ycombinator.com/newest",
-            "https://news.ycombinator.com/best",
-            "https://news.ycombinator.com/ask",
-            "https://news.ycombinator.com/show"
-        ]
-
-    async def process_pipeline(self, url: str, idx: int):
-        """Simulates or drives the headless scraper pipeline with explicit telemetry hooks."""
-        start_ts = time.perf_counter()
-        success = False
+def execute_matrix_pipeline():
+    logger.info("⚡ Activating Complete Ingestion to Storage Matrix Loop...")
+    
+    # Start the metric exposition server thread
+    metrics_exporter.start_telemetry_server(8000)
+    
+    scraper = GodScraper()
+    storage = StorageSyncEngine()
+    
+    target_stream = [
+        ("https://github.com/trending", "<html>Trending repositories context layer</html>"),
+        ("https://github.com/trending", "<html>Trending repositories context layer</html>"), # Duplicate
+        ("https://news.ycombinator.com/news", "<html>Standard Hacker News Document</html>")
+    ]
+    
+    for idx, (url, html) in enumerate(target_stream, start=1):
+        logger.info(f"▶️ Processing Pipeline Task Frame #{idx} -> {url}")
+        metrics_exporter.SYSTEM_METRICS["god_stack_ingestion_attempts_total"] += 1
         
-        # Acquire slot from back-pressure semaphore
-        async with self.semaphore:
-            logger.info(f"🚀 [WORKER {idx}] Processing pipeline for target: {url}")
-            try:
-                # Mocking network/JS engine rendering latency across the matrix pool
-                await asyncio.sleep(random.uniform(0.5, 1.8)) 
+        if scraper.process_target(url, html):
+            metrics_exporter.SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
+            structured_record = ContentExtractor.extract_payload(html, url)
+            
+            # Sync to SQLite WAL, checking for deduplication
+            is_new = storage.sync_record(structured_record)
+            if is_new:
+                metrics_exporter.SYSTEM_METRICS["god_stack_bytes_processed_total"] += structured_record["content_length"]
+            else:
+                metrics_exporter.SYSTEM_METRICS["god_stack_deduplication_skips_total"] += 1
                 
-                # Simulate intermittent structural failure for telemetry validation (5% error rate)
-                if random.random() < 0.05:
-                    raise RuntimeError("Anti-bot handshake or DNS routing matrix rejected connection.")
-                    
-                success = True
-                logger.info(f"✨ [SUCCESS {idx}] Pipeline finalized cleanly for: {url}")
-            except Exception as exc:
-                logger.error(f"❌ [FAILURE {idx}] Run failed on {url}: {exc}")
-            finally:
-                # Fix 2: Calculate duration high-precision and flush to JSON
-                duration_ms = (time.perf_counter() - start_ts) * 1000
-                telemetry.record_job(success=success, duration_ms=duration_ms)
+        print("-" * 72)
+        time.sleep(0.5)
 
-    async def engine_pump(self):
-        logger.info(f"⚡ Booting Matrix Engine with Concurrency Cap = {self.semaphore._value}")
-        tasks = [self.process_pipeline(url, idx) for idx, url in enumerate(self.targets, start=1)]
-        await asyncio.gather(*tasks)
-        logger.info("🏁 All queued matrix targets have processed completely.")
+    # Output an administrative curl verification check
+    logger.info("📡 Simulating local target scrape verification check from Prometheus port...")
+    import urllib.request
+    try:
+        metrics_payload = urllib.request.urlopen("http://localhost:8000/metrics").read().decode("utf-8")
+        print("\n\033[1;36m=== EXPOSED PROMETHEUS SCRAPE PAYLOAD ===\033[0m")
+        print(metrics_payload)
+    except Exception as e:
+        logger.error(f"Failed to query metrics endpoint: {e}")
 
 if __name__ == "__main__":
-    matrix = ProductionMatrix(max_concurrency=3)
-    asyncio.run(matrix.engine_pump())
+    import time
+    while True:
+        try:
+            execute_matrix_pipeline()
+        except Exception as e:
+            print(f"[GOD-ENGINE] ❌ Pipeline runtime exception: {e}")
+        print("[GOD-ENGINE] ⏳ Cycle complete. Retention hold active: Keeping port 8000 open for Prometheus...")
+        time.sleep(15)
+    import time
+    print('[GOD-ENGINE] ⏳ Holding socket open for 15s for Prometheus scrape...')
+    time.sleep(15)
