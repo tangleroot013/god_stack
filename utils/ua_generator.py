@@ -3,7 +3,6 @@ import secrets
 class UAGeneratorMatrix:
     """Cycles through high-fidelity browser headers to spoof hardware identity."""
     def __init__(self):
-        # A curated matrix of modern, high-entropy User-Agent strings
         self.matrix = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
@@ -13,9 +12,4 @@ class UAGeneratorMatrix:
         ]
 
     def get_random_mask(self) -> str:
-        """Returns a randomized high-fidelity signature from the matrix."""
         return secrets.choice(self.matrix)
-
-if __name__ == "__main__":
-    ua_gen = UAGeneratorMatrix()
-    print(f"\033[1;34m[IDENTITY]\033[0m Dispatched UA Mask: {ua_gen.get_random_mask()}")

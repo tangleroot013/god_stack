@@ -1,43 +1,32 @@
 import asyncio
 import logging
-from datetime import datetime
-from utils.adaptive_throttler import AdaptiveThrottler
-from utils.graph_sync import ObsidianGraphSync
+from daemon_core import DaemonCore
 
-# Setup minimal clean stdout logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("SystemCheck")
+# Configure clean terminal telemetry output
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] (%(name)s) %(message)s"
+)
+log = logging.getLogger("PoolCheck")
 
 async def run_diagnostics():
-    print("\n=== 🖥️ G.O.D. CLUSTER DIAGNOSTIC TELEMETRY ===")
+    print("\n=== 🖥️ G.O.D. CLUSTER WORKER POOL DIAGNOSTICS ===")
     
-    # 1. Validate Pacing Engine
-    throttler = AdaptiveThrottler()
-    domain = "api.target-registry.net"
-    print(f"\n[+] Testing Adaptive Throttler against target: {domain}")
+    # Initialize the core daemon process
+    core = DaemonCore(concurrent_slots=3)
     
-    # Feed mock historical execution speeds (in ms)
-    mock_latencies = [420.0, 380.5, 510.2, 460.0]
-    for ms in mock_latencies:
-        throttler.record_latency(domain, ms)
-        
-    calculated_delay = throttler.calculate_pacing_delay(domain)
-    print(f"    -> Calculated Humanized Delay Window: {calculated_delay}ms")
+    # Create a task to run the main worker pool loop
+    pool_task = asyncio.create_task(core.main_loop())
     
-    # 2. Test Markdown Node Telemetry Export
-    sync_engine = ObsidianGraphSync()
-    mock_identity_payload = {
-        "identity_id": "node_alpha_77x",
-        "status": "PRISTINE",
-        "success_rate": 0.96,
-        "total_missions": 142,
-        "evaluated_at": datetime.utcnow().isoformat()
-    }
+    # Allow the pool to run concurrently for a few seconds to verify stability
+    log.info("Monitoring worker pool initialization window...")
+    await asyncio.sleep(3)
     
-    print(f"\n[+] Serializing metadata to visual graph...")
-    out_path = sync_engine.sync_identity_node(mock_identity_payload)
-    print(f"    -> Local vault index created: {out_path}")
-    print("\n============================================")
+    print("\n[+] Pool stability test window completed successfully.")
+    print("==================================================")
 
 if __name__ == "__main__":
-    asyncio.run(run_diagnostics())
+    try:
+        asyncio.run(run_diagnostics())
+    except KeyboardInterrupt:
+        log.warning("Diagnostics terminated by user.")

@@ -1,0 +1,14 @@
+[
+  {
+    "url": "https://news.ycombinator.com",
+    "label": "hn"
+  },
+  {
+    "url": "https://github.com",
+    "label": "github"
+  },
+  {
+    "url": "https://python.org",
+    "label": "python"
+  }
+]

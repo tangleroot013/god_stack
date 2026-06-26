@@ -1,0 +1,20 @@
+[Unit]
+Description=G.O.D. Stack Orchestrator Engine Loop
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/tangleroot013/god_stack
+ExecStart=/usr/bin/bash /home/tangleroot013/god_stack/run_orchestrator.sh
+Environment="PATH=/home/tangleroot013/god_stack/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+# ---- LOOP AUTOMATION POLICIES ----
+Restart=always
+RestartSec=5s
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

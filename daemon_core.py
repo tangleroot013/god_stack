@@ -1,41 +1,58 @@
+#!/usr/bin/env python3
+# ==============================================================================
+# daemon_core.py – Central Heartbeat with Automated Resource Snapshotting
+# ==============================================================================
 import asyncio
 import logging
-from core.worker_pool import WorkerPool
-from utils.identity_monitor import IdentityHealthMonitor
-from utils.identity_reaper import IdentityReaper
+import time
+import psutil
+from datetime import datetime
+from utils.metrics_db import _exec, record_worker
 
-class MockStealth:
-    def dispatch_identity(self):
-        return {"user_agent": "Mozilla/5.0 Matrix Camouflage Browser v1.0"}
+logging.basicConfig(
+    level=logging.INFO,
+    format="\033[1;34m%(asctime)s\033[0m | \033[1;35m[DAEMON-CORE]\033[0m %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger("DaemonCore")
 
 class DaemonCore:
-    def __init__(self, concurrent_slots: int = 5):
-        self.logger = logging.getLogger("DaemonCore")
-        self.running = False
-        
-        # Core Subsystems
-        self.stealth = MockStealth()
-        self.identity_monitor = IdentityHealthMonitor()
-        self.pool = WorkerPool(pool_size=concurrent_slots)
-        self.reaper = IdentityReaper(self.identity_monitor, self.stealth)
-        
-        self.logger.info("💀 Automatic Identity Reaper linked.")
-        self.logger.info("⚡ Mainframe Performance Optimizer linked.")
+    def __init__(self):
+        self.schedules = {}
+        self.last_run = {}
 
-    async def maintenance_heartbeat(self):
-        """Periodic background cleanup of burned identities."""
-        while self.running:
-            reaped = self.reaper.run_reap_cycle()
-            if reaped > 0:
-                self.logger.info(f"🧹 Sanitization Complete: {reaped} identities retired.")
-            await asyncio.sleep(300) # Execute check cycle every 5 minutes
+    async def register_job(self, name: str, interval: int, coro):
+        self.schedules[name] = {"interval": interval, "coro": coro}
+        self.last_run[name] = datetime.min
+        logger.info(f"Registered workflow: {name} [Target Frequency: Every {interval}s]")
 
-    async def main_loop(self):
-        self.running = True
-        self.logger.info("🤖 G.O.D. Cluster Active. Orchestrating missions...")
-        
-        # Start the reaper as a non-blocking background task tracking the event loop
-        asyncio.create_task(self.maintenance_heartbeat())
+    async def run_forever(self):
+        logger.info("Initializing multi-threaded scheduling telemetry frame...")
+        while True:
+            start_time = time.time()
+            now = datetime.now()
+            
+            for name, cfg in self.schedules.items():
+                if (now - self.last_run[name]).total_seconds() >= cfg["interval"]:
+                    logger.info(f"🔄 Spawning execution thread: {name}")
+                    self.last_run[name] = now
+                    try:
+                        await cfg["coro"]()
+                        record_worker(name, "success")
+                    except Exception as execution_fault:
+                        logger.error(f"❌ Structural exception caught on worker '{name}': {str(execution_fault)}")
+                        record_worker(name, "failure")
 
-        # Relayout work execution directly to the performance worker pool
-        await self.pool.start_pool()
+            # Collect resource telemetry metrics
+            mem = psutil.Process().memory_info().rss
+            duration = time.time() - start_time
+            
+            try:
+                _exec(
+                    "INSERT INTO daemon_loop (ts, duration, memory_bytes) VALUES (?,?,?)",
+                    (int(start_time), duration, mem),
+                )
+            except Exception as db_err:
+                logger.error(f"Telemetry logging failed: {str(db_err)}")
+            
+            await asyncio.sleep(1)

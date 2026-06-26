@@ -1,13 +1,41 @@
-version: '3.8'
+networks:
+  god_network:
+    driver: bridge
+    name: god_network
 services:
-  mission-control:
-    image: redis:7.2-alpine
-    container_name: god_redis_broker
+  god_grafana:
+    container_name: god_grafana
+    depends_on:
+    - god_prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: light
+    image: grafana/grafana:10.4.0
+    networks:
+    - god_network
     ports:
-      - "6379:6379"
+    - 3000:3000
+    restart: unless-stopped
     volumes:
-      - redis_data:/data
-    restart: always
-
-volumes:
-  redis_data:
+    - /home/tangleroot013/god_stack/grafana/provisioning:/etc/grafana/provisioning:ro
+  god_prometheus:
+    container_name: god_prometheus
+    extra_hosts:
+    - host.docker.internal:host-gateway
+    image: prom/prometheus:v2.53.0
+    networks:
+    - god_network
+    ports:
+    - 9090:9090
+    restart: unless-stopped
+    volumes:
+    - /home/tangleroot013/god_stack/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  god_pushgateway_service:
+    container_name: god_pushgateway
+    image: prom/pushgateway:v1.10.0
+    networks:
+    - god_network
+    ports:
+    - 9091:9091
+    restart: unless-stopped
+version: '3.8'

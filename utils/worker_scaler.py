@@ -116,11 +116,11 @@ class MultiLaneAutoScaler:
         # Provisioning Execution Channel
         if self.breach_counter >= SUSTAINED_WINDOW_K:
             if current_time - self.last_scale_time > COOLDOWN_PERIOD:
-                if worker_count < 2:
-                    logger.critical("🚀 Multi-Lane Scale-Up Engaged: Spawning Worker-01...")
-                    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+                if worker_count < MAX_WORKERS:
+                    logger.critical(f"🚀 Multi-Lane Scale-Up Engaged: Spawning Worker-{worker_count:02d}...")
+                    subprocess.Popen([sys.executable, "utils/worker_loop.py", f"Worker-{worker_count:02d}"])
                     # Provision split capacity structure: 70% standard, 30% priority split allocation
-                    register_worker("Worker-01", std_rate=35.0, prio_rate=15.0, status=1)
+                    register_worker(f"Worker-{worker_count:02d}", std_rate=35.0, prio_rate=15.0, status=1)
                     self.last_scale_time = current_time
                     self.breach_counter = 0
                 else:
