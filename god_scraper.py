@@ -1,49 +1,66 @@
-#!/usr/bin/env python3
-# ==============================================================================
-# G.O.D. SCRAPER CORE (god_scraper.py)
-# Architecture: High-performance wrapper executing via GodEngine abstraction layers.
-# ==============================================================================
 import asyncio
+import json
 import logging
-from god_engine import GodEngine
+import yaml
+from typing import Dict, Any, Optional
+from playwright.async_api import async_playwright
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;34m%(asctime)s\033[0m | \033[1;35m[GOD-SCRAPER]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
+    format="\033[1;36m%(asctime)s\033[0m | \033[1;35m[GOD-ENGINE]\033[0m %(message)s"
 )
 logger = logging.getLogger("GodScraper")
 
 class GodScraper:
-    def __init__(self):
-        self.engine = GodEngine()
+    def __init__(self, profile_name: str = "default_profile", profile_path: str = "stealth_profiles.yaml"):
+        self.profile_name = profile_name
+        self.profile = self._load_profile(profile_path, profile_name)
+        self.playwright = None
+        self.browser = None
+        self.context = None
 
-    def process_target(self, raw_url: str, mock_html: str = "") -> bool:
-        """Runs target URL through the high-performance async engine loop securely."""
-        logger.info(f"🚀 Passing ingestion target forward to async processing core...")
+    def _load_profile(self, path: str, name: str) -> Dict[str, Any]:
         try:
-            # Safely bridge the synchronous invocation to the async execution matrix
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        result = loop.run_until_complete(self.engine.process_target(raw_url))
-        
-        if result.get("status") == "success":
-            logger.info("✅ Ingestion complete. Payload secure and verified via engine abstraction.")
-            return True
-        else:
-            logger.error(f"Pipeline aborted: {result.get('reason')}")
-            return False
+            with open(path, "r") as f:
+                config = yaml.safe_load(f)
+                return config.get(name, config.get("default_profile", {}))
+        except Exception:
+            return {"user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-if __name__ == "__main__":
-    print("\n\033[1;36m==================================================\033[0m")
-    print("\033[1;36m    INITIATING UNIFIED PIPELINE RUNWAY DIAGNOSTIC \033[0m")
-    print("\033[1;36m==================================================\033[0m")
-    
-    scraper = GodScraper()
-    dirty_target = "HTTPS://NEWS.YCOMBINATOR.COM/item?id=300&utm_source=test#comments"
-    mock_cloudflare_html = "<html><script src='https://challenges.cloudflare.com/turnstile/v0/api.js'></script></html>"
-    
-    scraper.process_target(dirty_target, mock_cloudflare_html)
+    async def initialize(self, headless: bool = True, proxy_url: Optional[str] = None):
+        self.playwright = await async_playwright().start()
+        
+        proxy_config = {"server": proxy_url} if proxy_url else None
+        if proxy_config:
+            logger.info(f"Injecting Network Proxy Matrix: {proxy_url}")
+        else:
+            logger.info("No active proxy node provided. Routing through system interface standard default.")
+
+        self.browser = await self.playwright.chromium.launch(
+            headless=headless,
+            proxy=proxy_config,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--ignore-certificate-errors'
+            ]
+        )
+        
+        self.context = await self.browser.new_context(
+            user_agent=self.profile.get("user_agent"),
+            viewport=self.profile.get("viewport", {"width": 1920, "height": 1080}),
+            locale=self.profile.get("languages", ["en-US"])[0],
+            timezone_id="America/New_York"
+        )
+        
+        await self.context.add_init_script(f"""
+            Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
+            Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => {self.profile.get('hardware_concurrency', 8)} }});
+            Object.defineProperty(navigator, 'deviceMemory', {{ get: () => {self.profile.get('device_memory', 8)} }});
+            Object.defineProperty(navigator, 'platform', {{ get: () => '{self.profile.get('platform', 'Win32')}' }});
+        """)
+
+    async def shutdown(self):
+        if self.context: await self.context.close()
+        if self.browser: await self.browser.close()
+        if self.playwright: await self.playwright.stop()
