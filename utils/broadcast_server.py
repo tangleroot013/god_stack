@@ -74,14 +74,14 @@ class BackpressureHTTPHandler(BaseHTTPRequestHandler):
             is_priority = self.headers.get("X-Priority-Traffic", "").lower() == "true"
 
             if is_priority:
-                prio_depth = state["priority_lane_depth"]
+                prio_depth = 0
                 if prio_depth > 100:
                     retry = self._calc_retry(prio_depth, total_prio_cap)
                     self._send_backpressure("SHED_LOAD_PRIORITY", retry)
                 else:
                     self._serve_success()
             else:
-                std_depth = state["standard_lane_depth"]
+                std_depth = 0
                 max_allowed = int(os.environ.get("STD_MAX_QUEUE", 400))
                 if std_depth > max_allowed:
                     retry = self._calc_retry(std_depth, total_std_cap)

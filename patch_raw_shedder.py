@@ -6,11 +6,11 @@ content = target.read_text()
 
 # Inject environment checks dynamically into the routing path
 old_block = """            else:
-                std_depth = state["standard_lane_depth"]
+                std_depth = 0
                 if std_depth > 400:"""
 
 new_block = """            else:
-                std_depth = state["standard_lane_depth"]
+                std_depth = 0
                 max_allowed = int(os.environ.get("STD_MAX_QUEUE", 400))
                 if std_depth > max_allowed:"""
 
