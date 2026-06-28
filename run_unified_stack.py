@@ -4,6 +4,7 @@ from frontier_manager import Frontier
 from url_sanitizer import UrlSanitizer
 from scavenger import ProxyScavenger
 from god_scraper import GodScraper
+from connection_pool import HttpPool
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +35,9 @@ class UnifiedExecutionMatrix:
 
     async def bootstrap(self):
         await self.run_url_sanitizer_layer()
+        
+        # Initialize connection boundaries and external scraping assets
+        HttpPool.init_pool(max_connections=50, max_keepalive=10)
         proxies = await self.scavenger.run()
         await self.engine.initialize(headless=True)
 
@@ -43,17 +47,21 @@ class UnifiedExecutionMatrix:
                 logger.info("Frontier target queues depleted. Pausing runtime loops.")
                 break
                 
+            # Enforce back-pressure delay matching target host metadata 
+            await HttpPool.acquire_domain_slot(url)
+            
             logger.info(f"[ENGINE] Firing extraction matrix sequences across active hotpaths for: {url}")
             stats = Frontier.stats()
             logger.info(f"[METRICS] Live Stats Matrix Queue Depth: {stats['queue_depth']} | Dequeue Operations: {stats['frontier.dequeue']}")
             
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
         await self.teardown()
 
     async def teardown(self):
         logger.info("Closing active tasks and tearing down network context structures...")
         await self.engine.shutdown()
+        await HttpPool.shutdown()
         logger.info("[SUCCESS] Refactor matrix lifecycle execution complete. Workspace clean.")
 
 async def main():
