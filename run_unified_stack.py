@@ -5,6 +5,7 @@ from url_sanitizer import UrlSanitizer
 from scavenger import ProxyScavenger
 from god_scraper import GodScraper
 from connection_pool import HttpPool
+from parsers.html_parser import parse_html
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,10 +37,11 @@ class UnifiedExecutionMatrix:
     async def bootstrap(self):
         await self.run_url_sanitizer_layer()
         
-        # Initialize connection boundaries and external scraping assets
         HttpPool.init_pool(max_connections=50, max_keepalive=10)
-        proxies = await self.scavenger.run()
+        await self.scavenger.run()
         await self.engine.initialize(headless=True)
+
+        loop = asyncio.get_running_loop()
 
         while not self.shutdown_event.is_set():
             url = Frontier.dequeue()
@@ -47,10 +49,22 @@ class UnifiedExecutionMatrix:
                 logger.info("Frontier target queues depleted. Pausing runtime loops.")
                 break
                 
-            # Enforce back-pressure delay matching target host metadata 
             await HttpPool.acquire_domain_slot(url)
-            
             logger.info(f"[ENGINE] Firing extraction matrix sequences across active hotpaths for: {url}")
+            
+            # Simulated target HTML document frame payload context returned from target URL
+            simulated_payload = f"<html><head><title>Hacker News Refactor Data</title></head><body><article><p>Production pipeline analysis processing loop for {url}.</p></article><a href='https://news.ycombinator.com/item?id=42'>Deep Link discovery</a></body></html>"
+            
+            # Offload heavy parsing actions completely to an unblocking background thread-pool executor
+            extracted_data = await loop.run_in_executor(None, parse_html, simulated_payload)
+            
+            logger.info(f"[PARSER-OUT] Successfully Extracted Title: '{extracted_data['title']}'")
+            logger.info(f"[PARSER-OUT] Discovered Extracted Secondary Anchors: {extracted_data['links']}")
+            
+            # Feed newly discovered extraction pipeline links directly back into the dynamic frontier manager
+            if extracted_data['links']:
+                Frontier.enqueue_batch(extracted_data['links'])
+
             stats = Frontier.stats()
             logger.info(f"[METRICS] Live Stats Matrix Queue Depth: {stats['queue_depth']} | Dequeue Operations: {stats['frontier.dequeue']}")
             
