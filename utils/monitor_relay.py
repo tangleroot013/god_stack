@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import websockets
-from websockets.exceptions import ConnectionClosed
+from websockets import ConnectionClosed
 
 logging.basicConfig(level=logging.INFO, format="\033[1;36m%(asctime)s\033[0m | \033[1;33m[TELEMETRY-RELAY]\033[0m %(message)s")
 logger = logging.getLogger("MonitorRelay")
