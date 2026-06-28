@@ -1,156 +1,120 @@
-# ==============================================================================
-# UNIFIED G.O.D. STACK MASTER OPERATOR (run_unified_stack.py)
-# Architecture: Concurrent Background Worker Array + Real-Time TUI Bridge
-# ==============================================================================
-
+#!/usr/bin/env python3
+# =============================================================================
+# run_unified_stack.py – Unified Pure Python Asynchronous Orchestrator Matrix
+# =============================================================================
 import asyncio
-import time
-from rich.console import Console
-from rich.layout import Layout
-from rich.panel import Panel
-from rich.table import Table
-from rich.live import Live
-from rich.text import Text
-from rich import box
-
-# Import internal core matrix architecture components
-from scavenger import ProxyScavenger
+import logging
+import signal
+import sys
 from url_sanitizer import UrlSanitizer
+from scavenger import ProxyScavenger
 from god_engine import GodEngine
 
-# Shared thread-safe runtime state matrix
-SYSTEM_STATE = {
-    "status": "INITIALIZING",
-    "daemons_active": 4,
-    "proxies": [],
-    "bypasses_count": 12,
-    "data_volume_gb": 4.2,
-    "current_target": "None"
-}
+logging.basicConfig(
+    level=logging.INFO,
+    format="\033[1;30m%(asctime)s\033[0m | %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger("UnifiedStack")
 
-class UnifiedOrchestrator:
-    def __init__(self):
+class UnifiedExecutionMatrix:
+    def __init__(self, target_urls: list):
+        self.target_urls = target_urls
+        self.sanitized_urls = []
         self.scavenger = ProxyScavenger()
         self.engine = GodEngine()
+        self.shutdown_event = asyncio.Event()
 
-    async def run_proxy_harvest_daemon(self):
-        """Asynchronous background worker that continuously refreshes egress routing."""
-        while True:
-            SYSTEM_STATE["status"] = "SCAVENGING MATRIX"
-            # Execute background proxy collection
-            discovered = await self.scavenger.run()
-            
-            # Format and populate verified nodes into the global UI matrix state
-            updated_proxies = []
-            for idx, proxy in enumerate(discovered):
-                # Simulated realistic latency checks based on real responsive nodes
-                simulated_latency = f"{110 + (idx * 23)}ms"
-                updated_proxies.append((proxy.replace("http://", ""), "ACTIVE", simulated_latency))
-            
-            SYSTEM_STATE["proxies"] = updated_proxies
-            SYSTEM_STATE["status"] = "PIPELINE IDLE"
-            
-            # Re-evaluate public egress matrices every 5 minutes
-            await asyncio.sleep(300)
+    def handle_shutdown(self, signum, frame):
+        print() # Clear line after ^C
+        logger.warning(f"\033[1;31m[SHUTDOWN]\033[0m Intercepted signal ({signum}). Neutralizing loops gracefully...")
+        self.shutdown_event.set()
 
-    async def execute_mission_batch(self, targets: list):
-        """Processes live target structures through validation and data extraction filters."""
-        await asyncio.sleep(2) # Graceful initialization window
-        
-        for target in targets:
-            SYSTEM_STATE["status"] = "EXTRACTING INTEL"
-            # Step 1: Sanitize Target
-            clean_url = UrlSanitizer.normalize(target)
-            if not clean_url:
-                continue
-                
-            SYSTEM_STATE["current_target"] = clean_url
-            
-            # Step 2: Thread-isolated background extraction execution
+    async def run_url_sanitizer_layer(self):
+        logger.info("\033[1;34m[SANITIZER]\033[0m Initializing structural target validation matrix...")
+        results = []
+        for url in self.target_urls:
+            cleaned = UrlSanitizer.normalize(url)
+            if cleaned:
+                results.append(cleaned)
+        self.sanitized_urls = results
+        logger.info(f"\033[1;34m[SANITIZER]\033[0m Target alignment complete. Secured {len(self.sanitized_urls)} production routes.")
+
+    async def run_proxy_scavenger_loop(self):
+        while not self.shutdown_event.is_set():
             try:
-                await asyncio.to_thread(self.engine.process_target_array, [clean_url])
-                SYSTEM_STATE["data_volume_gb"] += 0.05 # Increment simulated tracking telemetry
-            except Exception:
-                pass
+                logger.info("\033[1;33m[SCAVENGER]\033[0m Re-evaluating public proxy distribution matrices...")
+                await self.scavenger.run()
+                # Cycle every 5 minutes, checking the event loop break flag at 1-second ticks
+                for _ in range(300):
+                    if self.shutdown_event.is_set():
+                        break
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"[SCAVENGER ANOMALY] Execution error: {e}")
+                await asyncio.sleep(10)
+        logger.info("\033[1;33m[SCAVENGER]\033[0m Background proxy routine gracefully suspended.")
+
+    async def run_god_engine_loop(self):
+        while not self.shutdown_event.is_set():
+            try:
+                if not self.sanitized_urls:
+                    await self.run_url_sanitizer_layer()
+
+                logger.info("\033[1;32m[ENGINE]\033[0m Firing extraction matrix sequences across active hotpaths...")
                 
-            await asyncio.sleep(4) # Compliance delay framework boundary
-            
-        SYSTEM_STATE["status"] = "MISSION COMPLETE"
-        SYSTEM_STATE["current_target"] = "Finished"
+                # Concurrent asynchronous target execution over individual routes via async gather fan-out
+                tasks = [self.engine.process_target(url) for url in self.sanitized_urls]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                for url, res in zip(self.sanitized_urls, results):
+                    if isinstance(res, Exception):
+                        logger.error(f"\033[1;31m[ENGINE ANOMALY]\033[0m Boundary fault on {url}: {res}")
+                    else:
+                        logger.info(f"\033[1;32m[ENGINE]\033[0m Extraction sequence processed cleanly for target: {url}")
 
-# ==============================================================================
-# UI GENERATION COUPLING MATRIX
-# ==============================================================================
+                # Throttled execution pause interval polling loop
+                for _ in range(60):
+                    if self.shutdown_event.is_set():
+                        break
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"[ENGINE CRITICAL] Context failure: {e}")
+                await asyncio.sleep(10)
+        logger.info("\033[1;32m[ENGINE]\033[0m Orchestration core successfully offloaded and neutralized.")
 
-def generate_proxy_table() -> Table:
-    table = Table(box=box.MINIMAL_DOUBLE_HEAD, expand=True)
-    table.add_column("Node Egress IP", style="cyan", no_wrap=True)
-    table.add_column("Status", justify="center", style="green")
-    table.add_column("Verified Latency", justify="right", style="magenta")
-    
-    active_list = SYSTEM_STATE["proxies"]
-    if not active_list:
-        table.add_row("Loading Egress Mesh...", "PENDING", "0ms", style="dim")
-    else:
-        for node, status, latency in active_list[:12]: # Fit top 12 comfortably on grid
-            table.add_row(node, status, latency)
-    return table
+    async def bootstrap(self):
+        await self.run_url_sanitizer_layer()
+        
+        scavenger_task = asyncio.create_task(self.run_proxy_scavenger_loop())
+        engine_task = asyncio.create_task(self.run_god_engine_loop())
 
-def generate_system_status() -> Panel:
-    status_color = "green" if "IDLE" in SYSTEM_STATE["status"] or "COMPLETE" in SYSTEM_STATE["status"] else "yellow"
-    
-    status_text = (
-        f"Operational State: [bold {status_color}]{SYSTEM_STATE['status']}[/bold {status_color}]\n"
-        f"Active Stack Daemons: [cyan]{SYSTEM_STATE['daemons_active']}[/cyan]\n"
-        f"Proxy Mesh Capacity: [cyan]{len(SYSTEM_STATE['proxies'])} Verified Nodes[/cyan]\n"
-        f"Bypass Interceptions: [magenta]{SYSTEM_STATE['bypasses_count']}[/magenta]\n"
-        f"Serialized Data Cache: [yellow]{SYSTEM_STATE['data_volume_gb']:.2f} GB[/yellow]\n\n"
-        f"Current Extraction Scope:\n[dim]{SYSTEM_STATE['current_target']}[/dim]"
-    )
-    return Panel(status_text, title="[bold white]Ecosystem Matrix Diagnostics[/bold white]", border_style="blue")
+        # Keep running until system intercepts an explicit termination event
+        await self.shutdown_event.wait()
 
-def build_layout() -> Layout:
-    layout = Layout()
-    layout.split_column(
-        Layout(name="header", size=3),
-        Layout(name="main", ratio=1)
-    )
-    layout["main"].split_row(
-        Layout(name="left_panel", ratio=2),
-        Layout(name="right_panel", ratio=1)
-    )
-    
-    header_text = Text("G.O.D. STACK MANAGEMENT INSTRUMENTATION panel", style="bold cyan", justify="center")
-    layout["header"].update(Panel(header_text, style="white on dark_blue"))
-    layout["left_panel"].update(Panel(generate_proxy_table(), title="[bold]Egress Routing Fabric[/bold]"))
-    layout["right_panel"].update(generate_system_status())
-    return layout
+        logger.info("Closing active tasks and tearing down network context structures...")
+        scavenger_task.cancel()
+        engine_task.cancel()
 
-async def ui_loop():
-    """Independent presentation layer loop keeping the shell display responsive."""
-    with Live(build_layout(), refresh_per_second=4, screen=True):
-        while SYSTEM_STATE["status"] != "MISSION COMPLETE":
-            await asyncio.sleep(0.25)
-        # Final render freeze frame to preserve results on output console
-        await asyncio.sleep(2)
-
-async def main():
-    orchestrator = UnifiedOrchestrator()
-    targets_to_extract = [
-        "https://news.ycombinator.com/news",
-        "https://news.ycombinator.com/best",
-        "//news.ycombinator.com/ask"
-    ]
-    
-    # Establish dynamic task schedules inside the event loop matrix
-    await asyncio.gather(
-        orchestrator.run_proxy_harvest_daemon(),
-        orchestrator.execute_mission_batch(targets_to_extract),
-        ui_loop()
-    )
+        await asyncio.gather(scavenger_task, engine_task, return_exceptions=True)
+        logger.info("\033[1;32m[SUCCESS]\033[0m Refactor matrix lifecycle execution complete. Workspace clean.")
 
 if __name__ == "__main__":
+    print("\n\033[1;35m--- INITIALIZING UNIFIED AWESOME-LIST RUNTIME MATRIX ---\033[0m")
+
+    TARGET_GRID = [
+        "NEWS.YCOMBINATOR.COM/newest",
+        "https://news.ycombinator.com/best"
+    ]
+
+    matrix = UnifiedExecutionMatrix(target_urls=TARGET_GRID)
+
+    # Bind operational low-overhead OS signal interception rules
+    signal.signal(signal.SIGINT, matrix.handle_shutdown)
+    signal.signal(signal.SIGTERM, matrix.handle_shutdown)
+
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n\033[1;31m[SHUTDOWN]\033[0m Matrix execution loop intercepted. Terminating sessions gracefully.")
+        asyncio.run(matrix.bootstrap())
+    except Exception as fatal_err:
+        logger.critical(f"Execution matrix suffered unhandled runtime failure: {fatal_err}")
+        sys.exit(1)
