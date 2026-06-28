@@ -13,7 +13,7 @@ async def run_diagnostics():
     print("\n=== 🖥️ G.O.D. CLUSTER WORKER POOL DIAGNOSTICS ===")
     
     # Initialize the core daemon process
-    core = DaemonCore(concurrent_slots=3)
+    core = DaemonCore()
     
     # Create a task to run the main worker pool loop
     pool_task = asyncio.create_task(core.main_loop())
