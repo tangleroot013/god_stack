@@ -1,33 +1,26 @@
-# ==============================================================================
-# G.O.D. STACK PROMETHEUS METRICS EXPORTER (prometheus_exporter.py)
-# Architecture: Core Infrastructure Telemetry & Operational Counters
-# ==============================================================================
+#!/usr/bin/env python3
+import logging
+from url_sanitizer import UrlSanitizer
+
+logger = logging.getLogger("PrometheusExporter")
 
 try:
-    from prometheus_client import Counter, Gauge, start_http_server
+    from prometheus_client import Histogram
+    REQUEST_DURATION = Histogram(
+        "http_request_duration_seconds",
+        "Time spent processing an ingestion request",
+        ["url"]
+    )
 except ImportError:
-    # Fallback mock classes if prometheus_client is missing in the local .venv
-    class Counter:
-        def __init__(self, name, documentation, labelnames=()): self.name = name
-        def labels(self, *args, **kwargs):
-            class MockLabel:
-                def inc(self, amount=1): pass
-            return MockLabel()
-    class Gauge:
-        def __init__(self, name, documentation, labelnames=()): self.name = name
-        def labels(self, *args, **kwargs):
-            class MockLabel:
-                def set(self, val): pass
-            return MockLabel()
-    def start_http_server(port): pass
+    # Fail-safe operational stub to prevent runtime execution faults if module is unlinked
+    class MockHistogram:
+        def labels(self, **kwargs): return self
+        def observe(self, amount): pass
+    REQUEST_DURATION = MockHistogram()
 
-# Core telemetry registration targets expected by verify_stack.py
-WORKER_EXECS = Counter('god_stack_worker_executions_total', 'Total executed worker iterations', ['worker_id', 'status'])
-PIPELINE_LATENCY = Gauge('god_stack_pipeline_latency_seconds', 'Active pipeline round-trip latency tracking')
-SCRAPE_SUCCESS_TOTAL = Counter('god_stack_scrape_success_total', 'Total successful database extractions')
-
-def init_metrics_server(port=8000):
-    try:
-        start_http_server(port)
-    except Exception as e:
-        print(f"[METRICS] Failed to bind server on port {port}: {e}")
+def observe_request(url: str, elapsed: float):
+    """Observes request processing speed while enforcing low label cardinality limits."""
+    if not url:
+        return
+    canonical = UrlSanitizer.normalize(url)
+    REQUEST_DURATION.labels(url=canonical).observe(elapsed)
