@@ -8,18 +8,35 @@ Follows pure FOSS principles with independent local task queuing.
 import asyncio
 import logging
 import sys
+import http.server
+
+# 1. Structural Socket Overlap Guard — Patch HTTPServer globally before imports
+_original_init = http.server.HTTPServer.__init__
+
+def resilient_http_server_init(self, server_address, RequestHandlerClass, bind_and_activate=True):
+    host, port = server_address
+    # If anything internal attempts to seize port 8000, dynamically step it away
+    if port == 8000:
+        port = 8002
+    try:
+        _original_init(self, (host, port), RequestHandlerClass, bind_and_activate)
+    except Exception as e:
+        # Fallback to an ephemeral port assignment if 8002 is also occupied
+        _original_init(self, (host, 0), RequestHandlerClass, bind_and_activate)
+
+http.server.HTTPServer.__init__ = resilient_http_server_init
+
+# Now proceed with native stack imports safely
 from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 from orchestrator import GodOrchestrator
 from god_engine import GodEngine
 
-# Thread-safe adapter interface to translate thread-offloaded executor requests safely
 def patch_god_engine_interface():
     """Maps legacy tracking vectors cleanly into modern async fetch_and_extract engine frames."""
     def process_target_array_patched(self, target_list):
         if not target_list:
             return {"status": "error", "message": "Empty targeting vector array"}
         target_url = target_list[0]
-        # Executed inside an isolated thread worker pool; establish an independent runtime loop
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -31,7 +48,6 @@ def patch_god_engine_interface():
             
     GodEngine.process_target_array = process_target_array_patched
 
-# Inject adapter interface path immediately before instantiation sequences
 patch_god_engine_interface()
 
 logging.basicConfig(
@@ -47,27 +63,12 @@ class ProductionMatrixEngine:
         self.active = False
         self._shutdown_event = asyncio.Event()
 
-    async def bootstrap(self, base_port: int = 8000):
-        """Starts the telemetry server with dynamic port fallback and initializes core matrix frameworks."""
+    async def bootstrap(self, base_port: int = 8001):
+        """Starts the standard telemetry server framework cleanly."""
         logger.info("Initializing Global Matrix Daemon System Framework...")
         
-        # Bind metrics server endpoint context dynamically
-        port = base_port
-        bound = False
-        max_attempts = 5
-        
-        for attempt in range(max_attempts):
-            try:
-                start_telemetry_server(port=port)
-                bound = True
-                break
-            except Exception as e:
-                logger.warning(f"Port {port} connection busy. Shifting deployment vectors...")
-                port += 1
-                
-        if not bound:
-            logger.error("Failed to secure an open telemetry socket endpoint.")
-            sys.exit(1)
+        # Stand up master telemetry server on 8001 to avoid all ambiguity
+        start_telemetry_server(port=base_port)
 
         # Initialize Core Orchestrator Ecosystem
         await self.orchestrator.initialize_matrix()
@@ -96,13 +97,11 @@ class ProductionMatrixEngine:
 
             try:
                 mission_profile = await self.orchestrator.execute_mission(target)
-                
                 if mission_profile.get("status") == "success":
                     logger.info(f"Ingestion mission completed successfully for vector: {target}")
                     SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
                 else:
                     logger.warning(f"Ingestion anomaly caught in pipeline: {mission_profile.get('message')}")
-            
             except Exception as e:
                 logger.error(f"Critical execution fault processing target context {target}: {e}")
             
@@ -119,8 +118,7 @@ class ProductionMatrixEngine:
 
 async def main():
     engine = ProductionMatrixEngine()
-    await engine.bootstrap(base_port=8000)
-    
+    await engine.bootstrap(base_port=8001)
     try:
         await engine.production_loop()
     except (KeyboardInterrupt, asyncio.CancelledError):
