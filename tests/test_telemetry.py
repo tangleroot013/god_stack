@@ -1,3 +1,12 @@
+import sys
+print("--- START DEBUG PATHS ---", file=sys.stderr)
+for p in sys.path: print("PATH ENTRY:", p, file=sys.stderr)
+try:
+    import websockets
+    print("LOADED WEBSOCKETS FROM:", getattr(websockets, "__file__", "UNKNOWN NAMESPACE"), file=sys.stderr)
+except Exception as e:
+    print("FAILED TO IMPORT WEBSOCKETS:", e, file=sys.stderr)
+print("--- END DEBUG PATHS ---", file=sys.stderr)
 import pytest
 import asyncio
 import websockets
