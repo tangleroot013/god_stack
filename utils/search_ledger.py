@@ -45,12 +45,49 @@ class SearchLedger:
         self.index = self.graph.copy()
         return self.graph
 
-    def rebuild_index(self) -> Dict[str, Any]:
+    def rebuild_index(self) -> int:
         """Compatibility wrapper required by timestamp and incremental indexing tests."""
-        self.build_ledger()
-        self.index_cache = self.graph.copy()
-        # Return the number of files actually indexed in this run
-        return len(result_dict)
+        if not hasattr(self, '_mtimes'):
+            self._mtimes = {}
+
+        # Resolve the vault directory to an absolute path
+        vault_path = getattr(self, 'vault_path', getattr(self, 'vault_dir', "vaults"))
+        vault = Path(vault_path).resolve()
+
+        indexed_count = 0
+        if vault.exists():
+            # Walk only files strictly under the vault directory
+            for f in vault.rglob("*"):
+                if f.is_dir():
+                    continue
+                
+                # Skip hidden files and directories
+                if any(part.startswith(".") for part in f.parts):
+                    continue
+                
+                # Double-check the file is under the vault
+                try:
+                    f.relative_to(vault)
+                except ValueError:
+                    continue
+
+                file_key = str(f)
+                try:
+                    mtime = f.stat().st_mtime
+                except FileNotFoundError:
+                    continue
+
+                if self._mtimes.get(file_key) != mtime:
+                    self._mtimes[file_key] = mtime
+                    indexed_count += 1
+
+        # Keep the ledger's internal structures in sync
+        if hasattr(self, "build_ledger"):
+            self.build_ledger()
+        self.index_cache = self.graph.copy() if hasattr(self, "graph") else {}
+
+        return indexed_count
+
 
     def query(self, term: str) -> List[str]:
         """Looks up nodes containing a term or matching links."""

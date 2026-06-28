@@ -7,13 +7,15 @@ TMP_VAULT = Path("/tmp/test_timestamp_vault")
 
 @pytest.fixture(autouse=True)
 def cleanup_env():
+    """Completely remove and recreate the test vault before and after each test."""
+    import shutil
+    # Clean before test
     if TMP_VAULT.exists():
-        for f in TMP_VAULT.iterdir(): f.unlink()
-        TMP_VAULT.rmdir()
+        shutil.rmtree(TMP_VAULT)
     yield
+    # Clean after test
     if TMP_VAULT.exists():
-        for f in TMP_VAULT.iterdir(): f.unlink()
-        TMP_VAULT.rmdir()
+        shutil.rmtree(TMP_VAULT)
 
 def test_timestamp_indexing_skips_unchanged():
     ledger = SearchLedger(vault_dir=str(TMP_VAULT))
