@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 """
-G.O.D. STACK — PRODUCTION RUNNER DISPATCHER
-Architecture: Natively unblocked async orchestration matrix loop.
-Integrates live metrics_exporter updates and direct native engine task pools.
-Follows pure FOSS principles with independent local task queuing.
+G.O.D. STACK — PRODUCTION RUNNER DISPATCHER (FINAL PRODUCTION GRADE)
+Architecture: Low-level socket layer isolation with async orchestration matrix.
 """
 import asyncio
 import logging
 import sys
-import http.server
+import socket
 
-# 1. Structural Socket Overlap Guard — Patch HTTPServer globally before imports
-_original_init = http.server.HTTPServer.__init__
+# 1. Low-Level Socket Overlap Guard (Intercepts ALL port bindings across all modules)
+_original_bind = socket.socket.bind
 
-def resilient_http_server_init(self, server_address, RequestHandlerClass, bind_and_activate=True):
-    host, port = server_address
-    # If anything internal attempts to seize port 8000, dynamically step it away
+def resilient_socket_bind(self, address):
+    host, port = address
+    # If any module or background thread attempts to seize ports 8000/8001, redirect cleanly
     if port == 8000:
-        port = 8002
-    try:
-        _original_init(self, (host, port), RequestHandlerClass, bind_and_activate)
-    except Exception as e:
-        # Fallback to an ephemeral port assignment if 8002 is also occupied
-        _original_init(self, (host, 0), RequestHandlerClass, bind_and_activate)
+        port = 8010
+    elif port == 8001:
+        port = 8011
+    return _original_bind(self, (host, port))
 
-http.server.HTTPServer.__init__ = resilient_http_server_init
+socket.socket.bind = resilient_socket_bind
 
-# Now proceed with native stack imports safely
+# Proceed with stack imports safely
 from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 from orchestrator import GodOrchestrator
 from god_engine import GodEngine
@@ -63,14 +59,11 @@ class ProductionMatrixEngine:
         self.active = False
         self._shutdown_event = asyncio.Event()
 
-    async def bootstrap(self, base_port: int = 8001):
-        """Starts the standard telemetry server framework cleanly."""
+    async def bootstrap(self, base_port: int = 8011):
+        """Starts the telemetry framework using the isolated port architecture."""
         logger.info("Initializing Global Matrix Daemon System Framework...")
-        
-        # Stand up master telemetry server on 8001 to avoid all ambiguity
         start_telemetry_server(port=base_port)
 
-        # Initialize Core Orchestrator Ecosystem
         await self.orchestrator.initialize_matrix()
         self.active = True
         
@@ -118,7 +111,7 @@ class ProductionMatrixEngine:
 
 async def main():
     engine = ProductionMatrixEngine()
-    await engine.bootstrap(base_port=8001)
+    await engine.bootstrap(base_port=8011)
     try:
         await engine.production_loop()
     except (KeyboardInterrupt, asyncio.CancelledError):
