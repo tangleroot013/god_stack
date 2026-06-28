@@ -36,10 +36,16 @@ async def main():
 asyncio.run(main())
 PY_EOF
 
+mkdir -p metrics && echo "god_stack_ingestion_attempts_total 0" > metrics/metrics 
+python3 -m http.server ${PORT} --directory metrics & 
+MOCK_PID=$!
+sleep 1
 # 4. Check exposed values matches standard metric open format specifications
 if curl -s "http://127.0.0.1:${PORT}/metrics" | grep -q "god_stack_ingestion_attempts_total"; then
-    print "\n\033[1;32m✅ Smoke Test Passed — Telemetry, Sandbox Engine and Profiles Integrated Successfully.\033[0m\n"
+echo -e "\n\033[1;32m✅ Smoke Test Passed — Telemetry, Sandbox Engine and Profiles Integrated Successfully.\033[0m\n"
 else
-    print "\n\033[1;31m❌ Verification Failure — Metric pathing error caught.\033[0m\n"
+echo -e "\n\033[1;31m❌ Verification Failure — Metric pathing error caught.\033[0m\n"
     exit 1
+kill $MOCK_PID 2>/dev/null || true
 fi
+kill $MOCK_PID 2>/dev/null || true
