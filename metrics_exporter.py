@@ -1,3 +1,4 @@
+import socket
 #!/usr/bin/env python3
 # ==============================================================================
 # G.O.D. TELEMETRY EXPORTER (metrics_exporter.py)
@@ -39,9 +40,14 @@ class PrometheusMetricsHandler(http.server.BaseHTTPRequestHandler):
         # Silence standard HTTP server poll text to protect console clarity
         pass
 
+class ResilientHTTPServer(http.server.HTTPServer):
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        super().server_bind()
+
 def start_telemetry_server(port: int = 8000):
     """Spins up the scraper exposition server context in a background thread."""
-    server = http.server.HTTPServer(("0.0.0.0", port), PrometheusMetricsHandler)
+    server = ResilientHTTPServer(("0.0.0.0", port), PrometheusMetricsHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     logger.info(f"📊 Telemetry Edge live and exporting metrics on port :{port}/metrics")
