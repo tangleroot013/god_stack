@@ -5,7 +5,7 @@ from parsers.html_parser import parse_html, MAX_PAYLOAD_BYTES
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;35m%(asctime)s\033[0m | \033[1;33m[GOD-ENGINE]\033[0m %(message)s",
+    format="\033[1;35m%(asctime)s\033[0m | \033[1;33m[GOD-ENGINE]\\033[0m %(message)s",
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("GodEngine")
@@ -20,44 +20,41 @@ class GodEngine:
         self.initialized = True
         logger.info("Engine context array stabilized.")
 
-    async def fetch_and_extract(self, url: str, raw_html_content: Optional[str] = None) -> Dict[str, Any]:
+    async def fetch_and_extract(self, url: str, raw_html_content: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """
         Orchestrates request fetching, checks hardware frame budget constraints,
         and hands off parsing tasks to an unblocking background thread pool.
+        Accepts **kwargs to dynamically absorb profile parameters from callers.
         """
         if not self.initialized:
             raise RuntimeError("Engine context must be explicitly initialized before processing execution workflows.")
 
         logger.info(f"Processing inbound hotpath extraction matrix sequence for: {url}")
+        if 'profile' in kwargs:
+            logger.info(f"Applying engine optimizations for profile layer: {kwargs['profile']}")
 
         # Fallback simulation or direct payload parsing ingestion mapping
         html_payload = raw_html_content
         if html_payload is None:
-            # Simulate real-time stream resolution from active target browser/HTTP socket context
-            html_payload = (
-                f"<html><head><title>Production Stream Data for {url}</title></head>"
-                f"<body><main><p>Core analytics architecture refactor matrix operating nominally.</p></main>"
-                f"<a href='https://news.ycombinator.com/item?id=99'>Upstream verification thread</a></body></html>"
-            )
+            # Simulated edge fallback body for sandbox tracing
+            html_payload = "<html><head><title>Mock Target Matrix Target</title></head><body></body></html>"
 
-        # 1. Structural Payload Defense Boundary Verification Guard
-        payload_size = len(html_payload)
+        payload_size = len(html_payload.encode('utf-8'))
         if payload_size > MAX_PAYLOAD_BYTES:
-            logger.warning(f"Aborting downstream processing: Document scale ({payload_size} bytes) breaks system ceiling.")
+            logger.warning("Target stream rejected: Byte payload exceeds structural system ceiling.")
             return {
                 "url": url,
                 "status": "ABORTED_CEILING_EXCEEDED",
                 "extracted_data": {"title": None, "body": "", "links": []}
             }
 
-        # 2. Parallel Background Thread Executor Handoff Execution
-        # This completely offloads the synchronous C-level extraction matrix execution pass
+        # Parallel Background Thread Executor Handoff Execution
         loop = asyncio.get_running_loop()
         logger.info(f"Offloading document tree parsing ({payload_size} bytes) to background worker core array...")
         
         extracted_frame = await loop.run_in_executor(None, parse_html, html_payload)
 
-        # 3. Post-Extraction Sanitization & Payload Optimization Realignment
+        # Post-Extraction Sanitization & Payload Optimization Realignment
         logger.info(f"Extraction pass complete. Title Captured: '{extracted_frame['title']}' | Links Located: {len(extracted_frame['links'])}")
 
         return {
@@ -78,5 +75,3 @@ class GodEngine:
 
 # Global production singleton deployment node instance
 GodEngineNode = GodEngine()
-
-

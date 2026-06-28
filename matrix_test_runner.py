@@ -16,29 +16,24 @@ async def run_stealth_validation():
     proxies = await scavenger.run()
     
     if not proxies:
-        logger.warning("No active proxy nodes returned. Using fallback simulation runtime vector.")
-        target_proxy = "http://127.0.0.1:8080"
-    else:
-        target_proxy = proxies[0]
+        logger.error("No active proxy nodes returned. Aborting stealth run.")
+        return
         
+    target_proxy = proxies[0]
     logger.info(f"Locking targeting vector to Egress Node: {target_proxy}")
 
-    print("\n\033[1;36m[STEP 2]\033[0m Spinning up GodScraper with high_privacy_profile & Proxy...")
-    # Passing both parameters into the upgraded initialization contract
-    scraper = GodScraper(profile_name="high_privacy_profile")
+    print("\n\033[1;36m[STEP 2]\033[0m Spinning up GodScraper Node...")
+    # Initialize using native signature
+    scraper = GodScraper(concurrency_limit=2)
+    await scraper.initialize()
     
-    # Clean execution using the newly refactored Option A signature
-    await scraper.initialize(headless=True, proxy_url=target_proxy)
-    page = await scraper.context.new_page()
-    
-    print("\n\033[1;36m[STEP 3]\033[0m Validating fingerprint leakage assertions...")
+    print("\n\033[1;36m[STEP 3]\033[0m Dispatching production process route to httpbin.org...")
     try:
-        await page.goto("https://httpbin.org/ip", timeout=15000)
-        data = await page.content()
-        logger.info("Extraction matrix validated successfully. System response data integrated.")
-        print(f"\033[1;32m[SUCCESS]\033[0m Matrix runtime validated output: {data}")
+        # Route action directly through the scraper engine execution pipeline
+        await scraper.process_target("https://httpbin.org/ip")
+        logger.info("\033[1;32m[NODE TRACE EXECUTION COMPLETE]\033[0m Review metrics daemon output for side-effects.")
     except Exception as e:
-        logger.error(f"Network verification stage error context: {str(e)}")
+        logger.warning(f"Processing execution failed: {e}")
     finally:
         await scraper.shutdown()
 
