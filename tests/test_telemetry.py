@@ -1,21 +1,12 @@
-import sys
-print("--- START DEBUG PATHS ---", file=sys.stderr)
-for p in sys.path: print("PATH ENTRY:", p, file=sys.stderr)
-try:
-    import websockets
-    print("LOADED WEBSOCKETS FROM:", getattr(websockets, "__file__", "UNKNOWN NAMESPACE"), file=sys.stderr)
-except Exception as e:
-    print("FAILED TO IMPORT WEBSOCKETS:", e, file=sys.stderr)
-print("--- END DEBUG PATHS ---", file=sys.stderr)
 import pytest
 import asyncio
 import websockets
-from websockets import ConnectionClosed
 from utils.monitor_relay import MonitorRelay
 from daemon_core import DaemonCore
 
 @pytest.mark.asyncio
 async def test_websocket_broadcast_lifecycle():
+    from websockets.exceptions import ConnectionClosed
     # Spin up relay server on a non-standard testing port
     relay = MonitorRelay(host="127.0.0.1", port=8999)
     await relay.start()
