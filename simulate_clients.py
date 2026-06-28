@@ -10,13 +10,12 @@ MIX_PRIO = 0.20  # 20% priority traffic
 
 async def fire_one(session, is_prio):
     start = time.perf_counter()
+    headers = {"X-Priority-Traffic": "true"} if is_prio else {}
     try:
-        async with session.post(TARGET_URL, json={"prio": is_prio}) as resp:
-            await resp.read()  # Consume body
+        async with session.post(TARGET_URL, json={"prio": is_prio}, headers=headers) as resp:
+            await resp.read()  # Fully consume runtime body
             status = resp.status
-            
-            # Extract shed reason if dropped
-            shed_reason = resp.headers.get("X-Shed-Reason", None) if status == 429 else None
+            shed_reason = resp.headers.get("X-Shed-Reason", None) if status == 503 else None
     except Exception:
         status = "Network Error"
         shed_reason = None
@@ -25,10 +24,12 @@ async def fire_one(session, is_prio):
     return status, latency_ms, shed_reason
 
 async def run_batch():
-    async with aiohttp.ClientSession() as session:
+    # Structural limit config setup
+    timeout_config = aiohttp.ClientTimeout(total=1.5)
+    async with aiohttp.ClientSession(timeout=timeout_config) as session:
         tasks = []
         for i in range(CLIENT_COUNT):
-            is_prio = (i % int(1/MIX_PRIO) == 0)
+            is_prio = (i % int(1/MIX_PRIO) == 0) if MIX_PRIO > 0 else False
             tasks.append(fire_one(session, is_prio))
         results = await asyncio.gather(*tasks, return_exceptions=False)
 

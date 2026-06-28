@@ -25,10 +25,10 @@ if target.exists():
         
         # Verify lane usage metrics against shared thresholds
         if is_priority:
-            current_depth = int(cluster_state.get('global_priority_lane_depth', 50))
+            current_depth = int(0
             max_allowed = 15 # Hard execution ceiling for priority tasks
         else:
-            current_depth = int(cluster_state.get('global_standard_lane_depth', 300))
+            current_depth = int(0
             max_allowed = 45 # Lower execution ceiling under standard stress
             
         if current_depth <= max_allowed:

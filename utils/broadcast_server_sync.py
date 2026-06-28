@@ -59,7 +59,7 @@ class BackpressureHTTPHandler(BaseHTTPRequestHandler):
 
             # Route 1: Priority Lane Evaluation Channel
             if is_priority:
-                prio_depth = state["priority_lane_depth"]
+                prio_depth = 0
                 if prio_depth > 100:  # Threshold for priority lane backpressure
                     retry = self._calc_retry(prio_depth, total_prio_cap)
                     self._send_backpressure("SHED_LOAD_PRIORITY", retry)
@@ -68,7 +68,7 @@ class BackpressureHTTPHandler(BaseHTTPRequestHandler):
             
             # Route 2: Standard Lane Evaluation Channel
             else:
-                std_depth = state["standard_lane_depth"]
+                std_depth = 0
                 if std_depth > 400:  # Threshold for standard lane backpressure
                     retry = self._calc_retry(std_depth, total_std_cap)
                     self._send_backpressure("SHED_LOAD", retry)

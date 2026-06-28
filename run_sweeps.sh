@@ -14,16 +14,20 @@ run_profile() {
     echo "🔥 Target Load    -> Concurrent Simulation Clients: ${clients}"
     echo "================================================================="
 
+    # EXPORT parameters so prod_orchestrator.sh and python workers read the environment matrix variables
+    export STD_MAX_QUEUE="${std_max}"
+    export WORKER_LATENCY="${delay}"
+
     # Reset metrics state cleanly via orchestrator
     ./prod_orchestrator.sh
 
     echo "⚡ Injecting traffic matrix via client simulator..."
-    # Pass parameters as clean positional values matching simulate_clients.py's internal structure
     python3 simulate_clients.py "${clients}" "${delay}" || true
 
     echo "🛑 Tearing down context for ${profile_name}..."
     pkill -f "utils.broadcast_server" || true
     pkill -f "utils.worker_scaler" || true
+    pkill -f "utils.worker_loop" || true
     sleep 1.0
 }
 

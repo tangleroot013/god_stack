@@ -1,0 +1,539 @@
+{
+  "_metadata": {
+    "description": "Health Insurance Carrier Target Configuration for Pennsylvania Academic Research Scraping",
+    "version": "1.0",
+    "last_updated": "2026-06-25",
+    "research_scope": "Premium tracking, deductible trends, out-of-pocket maximum analysis, network coverage, plan availability",
+    "state": "Pennsylvania",
+    "insurance_type": "health",
+    "instructions": "Add health insurance carrier URLs, quote form parameters, and extraction schema. Each target is processed with full stealth profile rotation."
+  },
+  "carriers": [
+    {
+      "carrier_id": "HIGHMARK_BCBS",
+      "carrier_name": "Highmark Blue Cross Blue Shield Pennsylvania",
+      "quote_url": "https://www.highmark.com/health-insurance/plans",
+      "rate_lookup_url": "https://www.highmark.com/plans/individual-family",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "19103",
+        "age": "35",
+        "gender": "F",
+        "state": "PA",
+        "household_size": 2,
+        "household_income": "65000",
+        "tobacco_user": false,
+        "coverage_type": "individual",
+        "plan_type": "PPO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".premium-amount, [data-monthly-cost]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": ".deductible-value, [data-deductible]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{0,2})"
+        },
+        "out_of_pocket_max": {
+          "css_selector": ".oop-max, [data-oop-maximum]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{0,2})"
+        },
+        "plan_type": {
+          "css_selector": "[data-plan-type]",
+          "type": "string"
+        },
+        "copay_primary_care": {
+          "css_selector": ".copay-pcp, [data-copay-primary]",
+          "type": "string",
+          "regex_pattern": "\\$(\\d+)"
+        },
+        "network_type": {
+          "css_selector": ".network-indicator",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 300,
+        "max_delay_ms": 800,
+        "referer": "https://www.google.com/search?q=health+insurance+pennsylvania",
+        "accept_language": "en-US,en;q=0.9"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "out_of_pocket_max",
+        "plan_type",
+        "copay_primary_care",
+        "network_coverage"
+      ],
+      "notes": "Highmark is the dominant regional BCBS carrier in PA. Moderate WAF sensitivity. Requires JavaScript rendering for rate tables. Store session cookies."
+    },
+    {
+      "carrier_id": "AETNA",
+      "carrier_name": "Aetna Health of Pennsylvania",
+      "quote_url": "https://www.aetna.com/individuals-families/health-insurance",
+      "rate_lookup_url": "https://www.aetna.com/individuals-families/find-plans",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "19107",
+        "age": "42",
+        "gender": "M",
+        "state": "PA",
+        "household_size": 3,
+        "household_income": "95000",
+        "tobacco_user": false,
+        "coverage_type": "family",
+        "plan_type": "HMO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".plan-price, [aria-label='Monthly premium']",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": "[data-deductible], .deductible-amount",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "out_of_pocket_max": {
+          "css_selector": "[data-oop-max], .out-of-pocket",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "copay_specialist": {
+          "css_selector": "[data-specialist-copay]",
+          "type": "string"
+        },
+        "coinsurance_after_deductible": {
+          "css_selector": ".coinsurance-rate",
+          "type": "string",
+          "regex_pattern": "(\\d+)%"
+        },
+        "drug_coverage": {
+          "css_selector": "[data-drug-formulary]",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 250,
+        "max_delay_ms": 700,
+        "referer": "https://www.bing.com/search?q=aetna+plans+pennsylvania",
+        "accept_language": "en-US,en;q=0.9,es;q=0.8"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "out_of_pocket_max",
+        "copay_specialist",
+        "coinsurance_rate",
+        "drug_tier_coverage"
+      ],
+      "notes": "Aetna operates HMO and PPO plans in PA. Heavy JavaScript rendering required. Aggressive bot detection—use residential proxies. High 429 error rates."
+    },
+    {
+      "carrier_id": "UPMC_HEALTH",
+      "carrier_name": "UPMC Health Plan",
+      "quote_url": "https://www.upmchealthplan.com/health-insurance/plans",
+      "rate_lookup_url": "https://www.upmchealthplan.com/en/get-quotes",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "15219",
+        "age": "28",
+        "gender": "F",
+        "state": "PA",
+        "household_size": 1,
+        "household_income": "45000",
+        "tobacco_user": false,
+        "coverage_type": "individual",
+        "plan_type": "EPO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".monthly-amount, [data-premium-display]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": "[data-annual-deductible]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "copay_office_visit": {
+          "css_selector": ".visit-copay, [data-office-copay]",
+          "type": "string",
+          "regex_pattern": "\\$(\\d+)"
+        },
+        "out_of_pocket_max": {
+          "css_selector": "[data-oop-limit]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "network_tier": {
+          "css_selector": ".tier-designation",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 200,
+        "max_delay_ms": 500,
+        "referer": "https://duckduckgo.com/?q=UPMC+health+insurance+PA",
+        "accept_language": "en-US;q=1.0"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "copay_office_visit",
+        "out_of_pocket_max",
+        "network_tier"
+      ],
+      "notes": "UPMC Health Plan is Pittsburgh-headquartered. Lighter anti-bot defenses than national carriers. Relatively fast scraping."
+    },
+    {
+      "carrier_id": "CIGNA",
+      "carrier_name": "Cigna Health Insurance",
+      "quote_url": "https://www.cigna.com/individuals-families/health-insurance-plans",
+      "rate_lookup_url": "https://www.cigna.com/individuals-families/shop-plans",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "19004",
+        "age": "55",
+        "gender": "M",
+        "state": "PA",
+        "household_size": 2,
+        "household_income": "120000",
+        "tobacco_user": true,
+        "coverage_type": "family",
+        "plan_type": "PPO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".premium-display, [data-monthly-premium]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": "[data-deductible-annual]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "coinsurance": {
+          "css_selector": "[data-coinsurance-pct]",
+          "type": "string",
+          "regex_pattern": "(\\d+)%"
+        },
+        "out_of_pocket_max": {
+          "css_selector": "[data-max-out-pocket]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "prescription_tier_1_copay": {
+          "css_selector": "[data-rx-tier1]",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 350,
+        "max_delay_ms": 900,
+        "referer": "https://www.google.com/search?q=cigna+health+plans",
+        "accept_language": "en-US,en;q=0.9"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "coinsurance_percentage",
+        "out_of_pocket_max",
+        "prescription_coverage"
+      ],
+      "notes": "Cigna is a national carrier with strong PA presence. High WAF sensitivity. Use datacenter proxies with caution. Requires session persistence."
+    },
+    {
+      "carrier_id": "UNITEDHEALTH",
+      "carrier_name": "UnitedHealthcare of Pennsylvania",
+      "quote_url": "https://www.uhc.com/health-insurance-plans/pennsylvania",
+      "rate_lookup_url": "https://www.uhc.com/en/health-insurance-plans/shop-plans",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "18101",
+        "age": "38",
+        "gender": "F",
+        "state": "PA",
+        "household_size": 2,
+        "household_income": "75000",
+        "tobacco_user": false,
+        "coverage_type": "family",
+        "plan_type": "PPO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": "[aria-label*='Monthly premium'], .pricing-amount",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": "[data-deductible]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "out_of_pocket_max": {
+          "css_selector": ".oop-maximum",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "plan_category": {
+          "css_selector": "[data-coverage-level]",
+          "type": "string"
+        },
+        "preventive_care_coverage": {
+          "css_selector": ".preventive-summary",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 400,
+        "max_delay_ms": 1000,
+        "referer": "https://www.yahoo.com/search?p=united+health+insurance+pennsylvania",
+        "accept_language": "en-US,en;q=0.9"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "out_of_pocket_max",
+        "plan_category",
+        "preventive_care_coverage"
+      ],
+      "notes": "UnitedHealthcare is the largest national insurer. Very aggressive anti-bot defenses and rate limiting. Use residential proxies only. High jitter required."
+    },
+    {
+      "carrier_id": "HUMANA",
+      "carrier_name": "Humana Health Insurance",
+      "quote_url": "https://www.humana.com/health-insurance/plans",
+      "rate_lookup_url": "https://www.humana.com/health-insurance/compare-plans",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "17101",
+        "age": "50",
+        "gender": "U",
+        "state": "PA",
+        "household_size": 1,
+        "household_income": "55000",
+        "tobacco_user": false,
+        "coverage_type": "individual",
+        "plan_type": "HMO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".plan-monthly-cost, [data-premium]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": "[data-deductible-value]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "out_of_pocket_max": {
+          "css_selector": "[data-oop-max-value]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "humana_rewards_eligible": {
+          "css_selector": "[data-wellness-benefit]",
+          "type": "boolean"
+        },
+        "mental_health_copay": {
+          "css_selector": "[data-mental-copay]",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 300,
+        "max_delay_ms": 750,
+        "referer": "https://www.search.com/?q=humana+pennsylvania+health",
+        "accept_language": "en-US;q=1.0,en;q=0.9"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "out_of_pocket_max",
+        "wellness_programs",
+        "mental_health_coverage"
+      ],
+      "notes": "Humana operates HMO, PPO, and EPO plans in PA. Moderate WAF sensitivity. Good wellness program data availability."
+    },
+    {
+      "carrier_id": "INDEPENDENCE_BCBS",
+      "carrier_name": "Independence Blue Cross",
+      "quote_url": "https://www.ibx.com/individuals-families/plans",
+      "rate_lookup_url": "https://www.ibx.com/get-quotes",
+      "quote_method": "POST",
+      "form_params": {
+        "zip_code": "19104",
+        "age": "30",
+        "gender": "F",
+        "state": "PA",
+        "household_size": 2,
+        "household_income": "70000",
+        "tobacco_user": false,
+        "coverage_type": "family",
+        "plan_type": "PPO"
+      },
+      "extraction_schema": {
+        "monthly_premium": {
+          "css_selector": ".price-monthly, [data-monthly-price]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*\\.\\d{2})"
+        },
+        "annual_deductible": {
+          "css_selector": ".deductible-amt, [data-annual-deductible]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "out_of_pocket_max": {
+          "css_selector": ".oop-maximum, [data-oop]",
+          "type": "float",
+          "regex_pattern": "\\$(\\d+(?:,\\d{3})*)"
+        },
+        "network_tier": {
+          "css_selector": ".network-tier, [data-network-level]",
+          "type": "string"
+        }
+      },
+      "request_config": {
+        "min_delay_ms": 250,
+        "max_delay_ms": 650,
+        "referer": "https://duckduckgo.com/?q=independence+blue+cross+pa",
+        "accept_language": "en-US,en;q=0.9"
+      },
+      "target_metrics": [
+        "monthly_premium",
+        "annual_deductible",
+        "out_of_pocket_max",
+        "network_tier"
+      ],
+      "notes": "Independence Blue Cross is a major PA‑wide carrier. Slightly higher JavaScript load times; residential proxies recommended."
+    }
+  ],
+  "scrape_parameters": {
+    "user_agent_pool": [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ],
+    "proxy_strategy": "rotating_residential",
+    "max_concurrent_requests": 6,
+    "retry_policy": {
+      "max_retries": 6,
+      "backoff_factor": 2,
+      "status_codes_to_retry": [
+        429,
+        502,
+        503,
+        504
+      ],
+      "respect_retry_after": true
+    },
+    "javascript_render": true,
+    "stealth_mode": {
+      "canvas_fingerprint": false,
+      "webgl_fingerprint": false,
+      "navigator_properties": true
+    },
+    "timeout_ms": 30000,
+    "cloudflare_solver": {
+      "enabled": true,
+      "max_solve_time_ms": 12000,
+      "solvers": [
+        "hcaptcha",
+        "turnstile",
+        "js_challenge"
+      ]
+    },
+    "fallback_renderer": {
+      "engine": "playwright",
+      "browser": "chromium",
+      "headless": true,
+      "timeout_ms": 30000
+    },
+    "proxy_cooldown_ms": 1500,
+    "audit": {
+      "store_challenge_solution": true,
+      "solution_key": "challenge_solution"
+    }
+  },
+  "extraction_defaults": {
+    "date_format": "YYYY-MM-DD",
+    "currency": "USD",
+    "decimal_separator": ".",
+    "thousand_separator": ",",
+    "missing_value_placeholder": "N/A"
+  },
+  "data_validation": {
+    "numeric_ranges": {
+      "monthly_premium": {
+        "min": 0,
+        "max": 2000
+      },
+      "annual_deductible": {
+        "min": 0,
+        "max": 20000
+      },
+      "out_of_pocket_max": {
+        "min": 0,
+        "max": 25000
+      }
+    },
+    "allowed_plan_types": [
+      "HMO",
+      "PPO",
+      "EPO",
+      "POS"
+    ],
+    "boolean_fields": [
+      "humana_rewards_eligible",
+      "tobacco_user"
+    ],
+    "string_length_limits": {
+      "plan_type": {
+        "max": 10
+      },
+      "network_type": {
+        "max": 20
+      },
+      "mental_health_copay": {
+        "max": 10
+      }
+    }
+  },
+  "scheduling": {
+    "frequency": "weekly",
+    "day_of_week": "Monday",
+    "time_of_day_utc": "02:00",
+    "timezone": "UTC",
+    "run_immediately_on_deploy": true,
+    "notify_on_failure": {
+      "email": "dataops@research.university.edu",
+      "slack_channel": "#health-insurance-scrape-alerts"
+    }
+  },
+  "output_config": {
+    "destination": "s3",
+    "bucket_name": "research-health-insurance-pa",
+    "file_prefix": "quotes/",
+    "file_format": "parquet",
+    "partition_by": [
+      "carrier_id",
+      "date"
+    ],
+    "compression": "snappy",
+    "metadata_inclusion": true,
+    "post_processing": {
+      "deduplicate": true,
+      "add_ingest_timestamp": true
+    }
+  }
+}

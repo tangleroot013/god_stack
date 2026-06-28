@@ -8,31 +8,33 @@ class DataAlchemist:
     @staticmethod
     def optimize_array_processing(raw_payloads: list) -> list:
         """
-        Executes single-pass fast filtering over raw dictionary matrices.
-        Optimized to circumvent loop-overhead metrics bloat.
+        Executes an unrolled, single-pass list comprehension over raw dictionary matrices.
+        Hoists global calculations and utilizes inner assignment expressions for speed.
         """
+        if not raw_payloads:
+            return []
+
         start_time = time.perf_counter()
-        processed_records = []
-        append_record = processed_records.append  # Localized pointer reference
+        batch_processed_at = int(time.time())
         
-        for record in raw_payloads:
-            if not isinstance(record, dict):
-                continue
-                
-            title = record.get("title", "").strip()
-            url = record.get("url", "").strip()
-            score = record.get("score", 0)
-            
-            if not title or not url:
-                continue
-                
-            append_record({
+        processed_records = [
+            {
                 "title": title,
                 "url": url,
                 "score": int(score) if isinstance(score, (int, float)) else 0,
-                "processed_at": int(time.time())
-            })
-            
+                "processed_at": batch_processed_at
+            }
+            for record in raw_payloads
+            if isinstance(record, dict)
+            for title in (record.get("title", "").strip(),)
+            for url in (record.get("url", "").strip(),)
+            for score in (record.get("score", 0),)
+            if title and url
+        ]
+        
         duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(f"✨ [ALCHEMIST] Vectorized transformation batch completed in {duration_ms:.3f}ms")
+        logger.info(
+            f"✨ [ALCHEMIST] Transformed {len(processed_records)}/{len(raw_payloads)} "
+            f"records in {duration_ms:.3f}ms"
+        )
         return processed_records
