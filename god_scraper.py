@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 from frontier_manager import Frontier
 from god_engine import GodEngineNode
 
@@ -12,7 +12,12 @@ logging.basicConfig(
 logger = logging.getLogger("GodScraper")
 
 class GodScraper:
-    def __init__(self, concurrency_limit: int = 10):
+    def __init__(self, concurrency_limit: int = 10, headless: bool = True, proxy_url: Optional[str] = None, profile_name: Optional[str] = None, **kwargs):
+        self.concurrency_limit = concurrency_limit
+        self.headless = headless
+        self.proxy_url = proxy_url
+        self.profile_name = profile_name
+        self.context: Any = None
         self.concurrency_limit = concurrency_limit
         self.semaphore = asyncio.Semaphore(concurrency_limit)
         self.active = False
@@ -92,6 +97,13 @@ class GodScraper:
             tasks = [asyncio.create_task(self.process_target(url)) for url in next_targets]
             await asyncio.gather(*tasks)
             ticks += 1
+
+    
+    async def scrape(self, urls: Union[str, List[str]]) -> Any:
+        """Compatibility layer for test orchestrators invoking batch URLs."""
+        if isinstance(urls, str):
+            return await self.process_target(urls)
+        return [await self.process_target(u) for u in urls]
 
     async def shutdown(self):
         """Terminates engine tasks and cleans workspace pipeline states."""

@@ -10,3 +10,11 @@ metrics/
 outputs/
 datasets/
 .env
+.pytest_cache/
+.ruff_cache/
+pyrightconfig.json
+
+# Ignore volatile runtime frames & telemetry streams
+vaults/*
+!vaults/index.html
+config/backups/

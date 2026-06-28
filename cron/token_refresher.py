@@ -20,6 +20,7 @@ class TokenRefresherCron:
             cookies = payload.get("cookies", [])
             
             if not cookies:
+            
                 return True
 
             # Extract the earliest cookie expiration timestamp

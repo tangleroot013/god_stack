@@ -38,6 +38,7 @@ class VFSOperator:
         payloads = glob(search_pattern)
         
         if not payloads:
+        
             return
 
         cursor = self.conn.cursor()
