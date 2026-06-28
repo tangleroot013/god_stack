@@ -1,6 +1,6 @@
 # ==============================================================================
 # WHATWG COMPLIANT URL SANITIZATION MATRIX (url_sanitizer.py)
-# Architecture: Standardized Normalization & Query Parameter Stripping
+# Architecture: Standardized Normalization, Deterministic Query Sorting, & Tracker Stripping
 # ==============================================================================
 
 import logging
@@ -34,16 +34,24 @@ class UrlSanitizer:
             parsed = urlparse(cleaned)
             
             # Extract and filter query string parameters
-            query_params = parse_qsl(parsed.query)
+            query_params = parse_qsl(parsed.query, keep_blank_values=True)
             
             if strip_trackers:
                 # Discard common behavioral analytics tracking noise
-                blacklisted_keys = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "gclid", "fbclid"}
+                blacklisted_keys = {
+                    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                    "gclid", "fbclid", "yclid", "twclid", "msclkid", "_hsenc", "mkt_tok"
+                }
                 query_params = [(k, v) for k, v in query_params if k.lower() not in blacklisted_keys]
 
-            # Re-serialize components back to spec alignment
+            # Enforce deterministic parameter sequencing for database deduplication
+            query_params.sort(key=lambda pair: pair[0])
             normalized_query = urlencode(query_params)
+            
+            # Clean paths and normalize trailing slashes consistently
             normalized_path = parsed.path if parsed.path else "/"
+            if len(normalized_path) > 1 and normalized_path.endswith("/"):
+                normalized_path = normalized_path.rstrip("/")
             
             final_url = urlunparse((
                 parsed.scheme.lower(),      # Schemes are lowercase per WHATWG spec
@@ -63,12 +71,14 @@ class UrlSanitizer:
             return cleaned
 
 if __name__ == "__main__":
-    print("\n\033[1;35m--- EVALUATING STRUCTURAL URL COMPLIANCE ENGINE ---\033[0m")
+    print("\n\033[1;35m--- EVALUATING UPGRADED URL COMPLIANCE ENGINE ---\033[0m")
     
+    # Advanced test matrix verifying parameters, casing, order variations, and trailing slashes
     dirty_urls = [
         "NEWS.YCOMBINATOR.COM/newest/",
-        "https://news.ycombinator.com/front?utm_source=twitter&utm_medium=social&id=123#comments",
-        "//news.ycombinator.com/ask?search=python++programming"
+        "https://news.ycombinator.com/front?utm_source=twitter&id=123&abc=xyz#comments",
+        "https://news.ycombinator.com/front?abc=xyz&id=123", # Out-of-order parameters to deduplicate
+        "//news.ycombinator.com/ask?msclkid=999&search=python"
     ]
     
     for url in dirty_urls:
