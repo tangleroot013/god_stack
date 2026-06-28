@@ -33,7 +33,11 @@ class StealthManager:
         }})();
         """
 
-    def dispatch_identity(self) -> dict:
+    @classmethod
+    def apply_hardware_masks(cls, page):
+        return True
+
+    def dispatch_identity(self, persistent_id=None) -> dict:
         """Generates a synchronized stealth package complete with hardware noise strings."""
         return {
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",

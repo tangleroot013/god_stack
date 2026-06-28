@@ -17,6 +17,7 @@ def cleanup_env():
 
 def test_timestamp_indexing_skips_unchanged():
     ledger = SearchLedger(vault_dir=str(TMP_VAULT))
+    TMP_VAULT.mkdir(parents=True, exist_ok=True)
     target_file = TMP_VAULT / "doc1.md"
     target_file.write_text("Telemetry matrix operational data stream.", encoding="utf-8")
     
