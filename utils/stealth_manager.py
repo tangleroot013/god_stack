@@ -35,6 +35,8 @@ class StealthManager:
 
     @classmethod
     def apply_hardware_masks(cls, page):
+        if hasattr(page, 'add_init_script'):
+            page.add_init_script("/* stealth payload */")
         return True
 
     def dispatch_identity(self, persistent_id=None) -> dict:

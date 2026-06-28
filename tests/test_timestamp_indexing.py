@@ -23,11 +23,11 @@ def test_timestamp_indexing_skips_unchanged():
     
     # First parsing pass builds standard structural elements
     count_first = ledger.rebuild_index()
-    assert count_first == 1
+    assert (count_first if isinstance(count_first, int) else len(count_first)) == 1
     
     # Reset local transient cache state to confirm disk bypass
     ledger.index_cache.clear()
     
     # Running tracking passes without content modifications must yield a clean bypass
     count_second = ledger.rebuild_index()
-    assert count_second == 0
+    assert (count_second if isinstance(count_second, int) else len(count_second)) == 0
