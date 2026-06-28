@@ -1,34 +1,38 @@
 #!/usr/bin/env python3
 """
-G.O.D. STACK — PRODUCTION RUNNER DISPATCHER (FINAL PRODUCTION GRADE)
-Architecture: Low-level socket layer isolation with async orchestration matrix.
+G.O.D. STACK — PRODUCTION RUNNER DISPATCHER
+Architecture: Isolated metrics port framework with native reuse flags.
 """
 import asyncio
 import logging
 import sys
 import socket
 
-# 1. Low-Level Socket Overlap Guard (Intercepts ALL port bindings across all modules)
-_original_bind = socket.socket.bind
+# Force global socket reuse capability across modules to clear kernel TIME_WAIT states
+_original_init = socket.socket.__init__
+def reuse_socket_init(self, *args, **kwargs):
+    _original_init(self, *args, **kwargs)
+    try:
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    except Exception:
+        pass
+socket.socket.__init__ = reuse_socket_init
 
-def resilient_socket_bind(self, address):
-    host, port = address
-    # If any module or background thread attempts to seize ports 8000/8001, redirect cleanly
-    if port == 8000:
-        port = 8010
-    elif port == 8001:
-        port = 8011
-    return _original_bind(self, (host, port))
-
-socket.socket.bind = resilient_socket_bind
-
-# Proceed with stack imports safely
+# Safely import the stack components
+import metrics_exporter
 from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 from orchestrator import GodOrchestrator
 from god_engine import GodEngine
 
+# Hotpatch default telemetry server functions to completely ignore port 8000
+original_start_telemetry = metrics_exporter.start_telemetry_server
+def secure_telemetry_fallback(port=8015):
+    # Route completely clear of default Prometheus or engine constraints
+    return original_start_telemetry(port=8015)
+metrics_exporter.start_telemetry_server = secure_telemetry_fallback
+
 def patch_god_engine_interface():
-    """Maps legacy tracking vectors cleanly into modern async fetch_and_extract engine frames."""
+    """Maps legacy tracking vectors cleanly into modern async engine frames."""
     def process_target_array_patched(self, target_list):
         if not target_list:
             return {"status": "error", "message": "Empty targeting vector array"}
@@ -59,10 +63,10 @@ class ProductionMatrixEngine:
         self.active = False
         self._shutdown_event = asyncio.Event()
 
-    async def bootstrap(self, base_port: int = 8011):
-        """Starts the telemetry framework using the isolated port architecture."""
+    async def bootstrap(self, base_port: int = 8015):
+        """Starts the production engine on a highly isolated tracking port allocation."""
         logger.info("Initializing Global Matrix Daemon System Framework...")
-        start_telemetry_server(port=base_port)
+        secure_telemetry_fallback(port=base_port)
 
         await self.orchestrator.initialize_matrix()
         self.active = True
@@ -73,7 +77,7 @@ class ProductionMatrixEngine:
             SYSTEM_METRICS["god_stack_active_daemons"] += 1
 
     async def production_loop(self):
-        """Drives metrics updates safely across the ingestion pipelines."""
+        """Drives metrics updates safely across target endpoints."""
         logger.info("Core subsystems active. Entering production daemon loop...")
         
         mock_targets = [
@@ -111,7 +115,7 @@ class ProductionMatrixEngine:
 
 async def main():
     engine = ProductionMatrixEngine()
-    await engine.bootstrap(base_port=8011)
+    await engine.bootstrap(base_port=8015)
     try:
         await engine.production_loop()
     except (KeyboardInterrupt, asyncio.CancelledError):
