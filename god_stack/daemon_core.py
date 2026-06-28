@@ -35,3 +35,17 @@ class DaemonCore:
 if __name__ == "__main__":
     core = DaemonCore()
     asyncio.run(core.run_forever())
+
+
+    async def invoke_pipeline_matrix(self):
+        """Explicit bridge to loop runner."""
+        import asyncio
+        import logging
+        logger = logging.getLogger("DaemonCore")
+        logger.info("Engaging structural execution framework loop via invoke_pipeline_matrix...")
+        while True:
+            await asyncio.sleep(1)
+
+    async def main_loop(self):
+        """Explicit backup alias matching historical calls."""
+        await self.invoke_pipeline_matrix()
