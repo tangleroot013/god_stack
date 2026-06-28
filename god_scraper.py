@@ -30,12 +30,9 @@ class GodScraper:
     async def initialize(self, headless: bool = True, proxy_url: Optional[str] = None):
         self.playwright = await async_playwright().start()
         
+        # Structure the proxy payload cleanly for Playwright if provided
         proxy_config = {"server": proxy_url} if proxy_url else None
-        if proxy_config:
-            logger.info(f"Injecting Network Proxy Matrix: {proxy_url}")
-        else:
-            logger.info("No active proxy node provided. Routing through system interface standard default.")
-
+        
         self.browser = await self.playwright.chromium.launch(
             headless=headless,
             proxy=proxy_config,

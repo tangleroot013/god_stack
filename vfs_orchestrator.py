@@ -38,7 +38,6 @@ class VFSOperator:
         payloads = glob(search_pattern)
         
         if not payloads:
-            logger.warning(f"No json components found in {self.json_dir}/.")
             return
 
         cursor = self.conn.cursor()
@@ -49,6 +48,7 @@ class VFSOperator:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     raw_data = json.load(f)
                 
+                # Normalize raw data to a list of dicts to handle array payloads safely
                 data_blocks = raw_data if isinstance(raw_data, list) else [raw_data]
                 
                 for data in data_blocks:
