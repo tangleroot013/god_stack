@@ -6,9 +6,11 @@ After=network.target
 Type=simple
 User=tangleroot013
 WorkingDirectory=/home/tangleroot013/god_stack
-ExecStart=/usr/bin/python3 run_production_matrix.py
+ExecStart=/home/tangleroot013/god_stack/.venv/bin/python3 run_production_matrix.py
 Restart=on-failure
 RestartSec=5
+Environment=PYTHONPATH=/home/tangleroot013/god_stack
+Environment="PATH=/home/tangleroot013/god_stack/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 StandardOutput=append:/home/tangleroot013/god_stack/logs/daemon_stdout.log
 StandardError=append:/home/tangleroot013/god_stack/logs/daemon_stderr.log
 
