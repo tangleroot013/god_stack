@@ -3,6 +3,7 @@ import logging
 from typing import List, Optional
 from frontier_manager import Frontier
 from god_engine import GodEngineNode
+from metrics_exporter import SYSTEM_METRICS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,7 +18,6 @@ class GodScraper:
         self.profile_name = profile_name
         self.semaphore = asyncio.Semaphore(concurrency_limit)
         self.active = False
-        self.context = None  # Setup mock container for integration verification pass
 
     async def initialize(self, headless: bool = True, proxy_url: Optional[str] = None):
         """Prepares worker matrices and underlying extraction dependencies with proxy routing."""
@@ -25,40 +25,36 @@ class GodScraper:
         if proxy_url:
             logger.info(f"Stealth configuration attached to proxy egress vector: {proxy_url}")
         
-        # Pass the parameters into the inner architecture
         await GodEngineNode.initialize(headless=headless)
         self.active = True
-        
-        # Mocking an abstract context environment wrapper for structural compatibility with test runners
-        class MockPage:
-            async def goto(self, url, timeout=15000):
-                logger.info(f"Mock Browser Routing validation to target: {url}")
-                return True
-            async def content(self):
-                return '{"origin": "127.0.0.1", "user-agent": "GodStackStealthEngine/2.0"}'
-        
-        class MockContext:
-            async def new_page(self):
-                return MockPage()
-                
-        self.context = MockContext()
         logger.info(f"Scraper sequence active. Concurrency ceiling set to: {self.concurrency_limit}")
 
-    async def process_target(self, url: str):
-        """Handles an isolated route extraction cycle with structural rate bounds."""
+    async def process_target(self, url: str) -> None:
+        """
+        Handles a single extraction round for a target URL.
+        Respects global concurrency limits, forwards context profiles, and extracts failures.
+        """
         async with self.semaphore:
             if not self.active:
                 return
 
             try:
-                result = await GodEngineNode.fetch_and_extract(url)
+                SYSTEM_METRICS["god_stack_ingestion_attempts_total"] += 1
                 
-                if result["status"] == "SUCCESS":
-                    discovered_links = result["extracted_data"]["links"]
-                    if discovered_links:
-                        logger.info(f"Discovered {len(discovered_links)} outbound routes from target context node.")
-            except Exception as e:
-                logger.error(f"Failed extraction execution phase for {url}: {str(e)}")
+                # Corrected: Explicitly forward the targeted stealth configuration profile profile_name
+                result = await GodEngineNode.fetch_and_extract(url, profile=self.profile_name)
+
+                if result.get("status") == "SUCCESS":
+                    links = result.get("extracted_data", {}).get("links", [])
+                    if links:
+                        logger.info(f"[{self.profile_name}] Discovered {len(links)} outbound routes from {url}")
+                    SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
+                else:
+                    # Enriched Failure Tracking: Log precise trace issues from internal exceptions
+                    msg = result.get("message") or result.get("error") or "Unknown internal execution termination"
+                    logger.warning(f"[{self.profile_name}] Extraction failed for {url}: {msg}")
+            except Exception as exc:
+                logger.error(f"[{self.profile_name}] Mission exception trace for {url}: {str(exc)}")
 
     def _get_next_targets(self, batch_size: int = 5) -> List[str]:
         """Safely pools targets from active upstream pipelines."""
