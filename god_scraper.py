@@ -44,7 +44,18 @@ class GodScraper:
                         logger.info(f"Discovered {len(discovered_links)} outbound routes from {url}. Enqueuing to Frontier...")
                         # Handle either batch or singular fallback dynamically
                         if hasattr(Frontier, 'enqueue_batch'):
-                            Frontier.enqueue_batch(discovered_links)
+                            try:
+                                Frontier.enqueue_batch(urls=discovered_links)
+                            except TypeError:
+                                try:
+                                    Frontier.enqueue_batch(discovered_links)
+                                except TypeError:
+                                    if hasattr(Frontier, 'enqueue'):
+                                        for link in discovered_links:
+                                            Frontier.enqueue(link)
+                        elif hasattr(Frontier, 'enqueue'):
+                            for link in discovered_links:
+                                Frontier.enqueue(link)
                         elif hasattr(Frontier, 'enqueue'):
                             for link in discovered_links:
                                 Frontier.enqueue(link)
