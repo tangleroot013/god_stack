@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 import websockets
+from websockets import ConnectionClosed
 from utils.monitor_relay import MonitorRelay
 from daemon_core import DaemonCore
 
