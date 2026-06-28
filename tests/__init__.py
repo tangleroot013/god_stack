@@ -12,10 +12,10 @@ if "prometheus_client" not in sys.modules:
         def dec(self, *a, **kw): pass
         def set(self, *a, **kw): pass
         def observe(self, *a, **kw): pass
-    prom_mock.Counter = _NoOpMetric
-    prom_mock.Gauge   = _NoOpMetric
-    prom_mock.Summary = _NoOpMetric
-    prom_mock.start_http_server = lambda *a, **kw: None
+    prom_mock.Counter = _NoOpMetric  # type: ignore
+    prom_mock.Gauge   = _NoOpMetric  # type: ignore
+    prom_mock.Summary = _NoOpMetric  # type: ignore
+    prom_mock.start_http_server = lambda *a, **kw: None  # type: ignore
     sys.modules["prometheus_client"] = prom_mock
 
 # ----------------------------------------------------------------------
@@ -27,7 +27,10 @@ if "websockets" not in sys.modules:
         async def recv(self): return "{}"
         async def send(self, data): pass
         async def close(self): pass
-    async def _mock_connect(*a, **kw):
+    async def _mock_connect(*a, **kw):  # type: ignore
         return _MockWSProtocol()
-    ws_mock.connect = _mock_connect
-    sys.modules["websockets"] = ws_mock
+    ws_mock.connect = _mock_connect  # type: ignore
+    import sys
+    # Do not mock websockets if we are collecting/running live telemetry tests
+    if not any("test_telemetry" in arg for arg in sys.argv):
+        sys.modules["websockets"] = ws_mock
