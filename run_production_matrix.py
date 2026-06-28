@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
 """
 G.O.D. STACK — PRODUCTION RUNNER DISPATCHER
-Architecture: Isolated metrics port framework with native reuse flags.
+Architecture: Isolated metrics port framework with explicit global monkeypatching.
 """
 import asyncio
 import logging
 import sys
 import socket
 
-# Force global socket reuse capability across modules to clear kernel TIME_WAIT states
+# 1. ENFORCE LOW-LEVEL REUSE & REDIRECTION FOR ALL SOCKET BINDINGS
+_original_bind = socket.socket.bind
 _original_init = socket.socket.__init__
-def reuse_socket_init(self, *args, **kwargs):
+
+def custom_socket_init(self, *args, **kwargs):
     _original_init(self, *args, **kwargs)
     try:
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     except Exception:
         pass
-socket.socket.__init__ = reuse_socket_init
 
-# Safely import the stack components
+def resilient_socket_bind(self, address):
+    host, port = address
+    # Catch any module (including god_engine/third-party) trying to hijack port 8000
+    if port in (8000, 8001, 8011):
+        port = 8015
+    return _original_bind(self, (host, port))
+
+socket.socket.__init__ = custom_socket_init
+socket.socket.bind = resilient_socket_bind
+
+# Proceed with stack module imports safely
 import metrics_exporter
 from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 from orchestrator import GodOrchestrator
 from god_engine import GodEngine
 
-# Hotpatch default telemetry server functions to completely ignore port 8000
+# Hotpatch metrics_exporter function defaults to fully prevent port 8000 utilization
 original_start_telemetry = metrics_exporter.start_telemetry_server
 def secure_telemetry_fallback(port=8015):
-    # Route completely clear of default Prometheus or engine constraints
     return original_start_telemetry(port=8015)
 metrics_exporter.start_telemetry_server = secure_telemetry_fallback
 
@@ -64,7 +75,6 @@ class ProductionMatrixEngine:
         self._shutdown_event = asyncio.Event()
 
     async def bootstrap(self, base_port: int = 8015):
-        """Starts the production engine on a highly isolated tracking port allocation."""
         logger.info("Initializing Global Matrix Daemon System Framework...")
         secure_telemetry_fallback(port=base_port)
 
@@ -77,7 +87,6 @@ class ProductionMatrixEngine:
             SYSTEM_METRICS["god_stack_active_daemons"] += 1
 
     async def production_loop(self):
-        """Drives metrics updates safely across target endpoints."""
         logger.info("Core subsystems active. Entering production daemon loop...")
         
         mock_targets = [
