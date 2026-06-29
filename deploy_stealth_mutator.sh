@@ -1,3 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo -e "\033[1;34m[1/2] Assembling Dynamic Stealth Profile Mutator...\033[0m"
+
+cat << 'PYEOF' > stealth_mutator.py
 import json
 import random
 import logging
@@ -46,3 +52,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+PYEOF
+
+echo -e "\033[1;34m[2/2] Launching verification runner...\033[0m"
+chmod +x stealth_mutator.py
+./.venv/bin/python3 stealth_mutator.py

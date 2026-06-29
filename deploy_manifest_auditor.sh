@@ -1,3 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo -e "\033[1;34m[1/2] Constructing Workspace Integration Matrix Auditor...\033[0m"
+
+cat << 'PYEOF' > matrix_test_runner.py
 import os
 import sys
 import logging
@@ -47,3 +53,8 @@ if __name__ == "__main__":
     if not all_clear:
         sys.exit(1)
     print("\n\033[1;32m✔ MODULE 66 INTEGRITY VERIFICATION MATRIX CONVERGED.\033[0m\n")
+PYEOF
+
+echo -e "\033[1;34m[2/2] Running production validation sync checks...\033[0m"
+chmod +x matrix_test_runner.py
+./.venv/bin/python3 matrix_test_runner.py
