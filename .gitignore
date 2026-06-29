@@ -3,18 +3,14 @@ __pycache__/
 .venv/
 venv/
 *.sqlite
-*.db
 storage/
 logs/
 metrics/
 outputs/
 datasets/
-.env
-.pytest_cache/
-.ruff_cache/
-pyrightconfig.json
-
-# Ignore volatile runtime frames & telemetry streams
 vaults/*
 !vaults/index.html
+.env
+god_stack_vfs.db
+pyrightconfig.json
 config/backups/
