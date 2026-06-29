@@ -1,43 +1,51 @@
+# =============================================================================
+# G.O.D. SLIDING RATE LIMITER (sliding_rate_limiter.py)
+# Architecture: Asynchronous Thread-Safe Sliding Window Token Inspector
+# =============================================================================
 import asyncio
 import time
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="\033[1;34m%(asctime)s\033[0m | \033[1;32m[RATE-LIMITER]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger("RateLimiter")
+logger = logging.getLogger("SlidingRateLimiter")
 
-class SlidingWindowLimiter:
-    def __init__(self, max_requests: int = 2, window_seconds: float = 1.0):
+class SlidingRateLimiter:
+    def __init__(self, max_requests: int = 10, window_seconds: float = 1.0):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self.request_timestamps = []
+        self.lock = asyncio.Lock()
+        self.request_logs = []
 
-    async def acquire_slot(self, task_id: int):
-        while True:
-            current_time = time.time()
-            # Clear historical timestamps that fall completely outside the sliding tracking frame
-            self.request_timestamps = [t for t in self.request_timestamps if current_time - t < self.window_seconds]
-            
-            if len(self.request_timestamps) < self.max_requests:
-                self.request_timestamps.append(current_time)
-                logger.info(f"Task #{task_id} cleared window check. Slot leased successfully.")
-                break
-            else:
-                wait_time = self.window_seconds - (current_time - self.request_timestamps[0])
-                logger.warning(f"Window threshold reached. Task #{task_id} backpressure delay injection ({wait_time:.2f}s)...")
-                await asyncio.sleep(max(wait_time, 0.01))
+    async def acquire(self, domain: str = "global") -> bool:
+        """Blocks execution smoothly until a slot opens in the sliding window."""
+        async with self.lock:
+            while True:
+                now = time.time()
+                # Prune logs older than our window ceiling
+                self.request_logs = [ts for ts in self.request_logs if now - ts < self.window_seconds]
+                
+                if len(self.request_logs) < self.max_requests:
+                    self.request_logs.append(now)
+                    return True
+                
+                # Compute minimum wait boundary before next inspection tick
+                sleep_time = self.request_logs[0] + self.window_seconds - now
+                if sleep_time > 0:
+                    logger.debug(f"Rate ceiling hit for {domain}. Throttling execution for {sleep_time:.4f}s")
+                    await asyncio.sleep(sleep_time)
 
-async def simulate_burst_traffic():
-    print("\n\033[1;32m--- G.O.D. ADAPTIVE BURST RATE CONTROL VALIDATION ---\033[0m")
-    limiter = SlidingWindowLimiter(max_requests=2, window_seconds=0.5)
+async def test_limiter_suite():
+    print("\n\033[1;33m--- RUNNING SLIDING RATE LIMITER TEST SUITE ---\033[0m")
+    limiter = SlidingRateLimiter(max_requests=3, window_seconds=1.0)
     
-    # Fire 4 execution tasks concurrently to force sliding window backpressure triggers
-    tasks = [limiter.acquire_slot(i) for i in range(4)]
-    await asyncio.gather(*tasks)
-    print("\n\033[1;32m✔ MODULE 37 SLIDING-WINDOW BACKPRESSURE RATE LIMITER COMPLIANT.\033[0m\n")
+    start_time = time.time()
+    for i in range(6):
+        await limiter.acquire(domain="target-node")
+        print(f"[T+{time.time() - start_time:.2f}s] Task Unit {i+1} cleared security gate.")
+        
+    duration = time.time() - start_time
+    assert duration >= 1.0, f"Rate limiting verification failed! Executed too quickly: {duration:.2f}s"
+    print("\033[1;32m[SUCCESS] SlidingRateLimiter suite verified cleanly.\033[0m")
 
 if __name__ == "__main__":
-    asyncio.run(simulate_burst_traffic())
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
+    asyncio.run(test_limiter_suite())
