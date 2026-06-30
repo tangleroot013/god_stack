@@ -15,3 +15,7 @@ god_stack_vfs.db
 pyrightconfig.json
 config/backups/
 *.db
+god_stack_vfs.db
+bulk_targets.txt
+test.csv
+*.sh
