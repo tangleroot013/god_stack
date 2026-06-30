@@ -2,11 +2,12 @@
 import http.server
 import threading
 import logging
-import socket
+import sqlite3
 
 logger = logging.getLogger("TelemetryExporter")
 
-# Shared atomic telemetry counters
+DB_PATH = "god_stack_vfs.db"
+
 SYSTEM_METRICS = {
     "god_stack_ingestion_attempts_total": 0,
     "god_stack_ingestion_success_total": 0,
@@ -14,16 +15,63 @@ SYSTEM_METRICS = {
     "god_stack_bytes_processed_total": 0
 }
 
-class ResilientHTTPServer(http.server.HTTPServer):
-    def server_bind(self):
-        # Enforces local SO_REUSEADDR configurations to protect ports against TCP TIME_WAIT locks
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        super().server_bind()
+def init_persistent_db():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS telemetry (
+                metric_key TEXT PRIMARY KEY,
+                metric_value INTEGER
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to initialize metric database: {e}")
 
-class PrometheusMetricsHandler(http.server.BaseHTTPRequestHandler):
-    """Exposes real-time state metrics using standard OpenMetrics format."""
+def increment_metric(metric_key: str, val: int = 1):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS telemetry (
+                metric_key TEXT PRIMARY KEY,
+                metric_value INTEGER
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO telemetry (metric_key, metric_value) VALUES (?, ?)
+            ON CONFLICT(metric_key) DO UPDATE SET metric_value = metric_value + ?
+        """, (metric_key, val, val))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to persist metric mutation: {e}")
+
+def sync_from_database():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS telemetry (
+                metric_key TEXT PRIMARY KEY,
+                metric_value INTEGER
+            )
+        """)
+        cursor.execute("SELECT metric_key, metric_value FROM telemetry")
+        rows = cursor.fetchall()
+        for key, value in rows:
+            if key in SYSTEM_METRICS:
+                SYSTEM_METRICS[key] = value
+        conn.close()
+    except Exception:
+        pass
+
+class PersistentMetricsHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/metrics":
+            sync_from_database()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
             self.end_headers()
@@ -39,13 +87,11 @@ class PrometheusMetricsHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        # Suppress request polling logging for clean trace outputs
         pass
 
-def start_telemetry_server(port: int = 8000):
-    """Spins up the scraper exposition server context in a background thread."""
-    server = ResilientHTTPServer(("0.0.0.0", port), PrometheusMetricsHandler)
+def start_telemetry_server(port: int = 8089):
+    init_persistent_db()
+    server = http.server.HTTPServer(("0.0.0.0", port), PersistentMetricsHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    logger.info(f"📊 Telemetry Edge live and exporting metrics on port :{port}/metrics")
-    return server
+    logger.info(f"📊 Persistent Telemetry Server operating on port :{port}/metrics")

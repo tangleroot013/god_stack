@@ -14,3 +14,4 @@ vaults/*
 god_stack_vfs.db
 pyrightconfig.json
 config/backups/
+*.db
