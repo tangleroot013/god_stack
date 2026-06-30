@@ -19,3 +19,4 @@ god_stack_vfs.db
 bulk_targets.txt
 test.csv
 *.sh
+upgrade_god_stack.py
