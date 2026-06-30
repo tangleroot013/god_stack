@@ -4,10 +4,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from database_layer import SQLitePool, ResearchLedger
 
+# Import metrics store (optional; can run without it)
+try:
+    from metrics_server import metrics as metrics_store
+    METRICS_ENABLED = True
+except ImportError:
+    METRICS_ENABLED = False
+
 class ConcurrentResearchEngine:
     def __init__(self, target_file="bulk_targets.txt", workers=None):
         self.target_file = Path(target_file)
-        # Auto-scale: leave 1 core free for system
         self.workers = workers or max(2, os.cpu_count() - 1)
         self.db = SQLitePool()
         self.ledger = ResearchLedger(self.db)
@@ -28,7 +34,6 @@ class ConcurrentResearchEngine:
                 "https://github.com/openai/gpt-4-research",
             ]
             self.target_file.write_text("\n".join(sample))
-            print("[+] Created default target list")
 
     def _process(self, url, worker_id):
         domain = url.split("//")[-1].split("/")[0]
@@ -56,6 +61,12 @@ class ConcurrentResearchEngine:
         with self.metrics_lock:
             self.worker_stats[worker_id]["processed"] += 1
             self.worker_stats[worker_id]["success" if success else "quarantined"] += 1
+            
+            # Push to metrics store if available
+            if METRICS_ENABLED:
+                metrics_store.worker_stats = self.worker_stats.copy()
+                metrics_store.global_stats["processed"] += 1
+                metrics_store.global_stats["success" if success else "quarantined"] += 1
 
         print(f"[{worker_id}] {'✅' if success else '⚠️'} {url}")
         return record
@@ -63,6 +74,12 @@ class ConcurrentResearchEngine:
     def run(self):
         self._ensure_targets()
         urls = [l.strip() for l in self.target_file.read_text().splitlines() if l.strip()]
+        
+        # Initialize metrics store
+        if METRICS_ENABLED:
+            metrics_store.start_time = time.time()
+            metrics_store.total_urls = len(urls)
+
         start = time.time()
 
         print("\n" + "="*60)
@@ -89,7 +106,7 @@ class ConcurrentResearchEngine:
         print("="*60)
         print(f"Elapsed Time: {elapsed:.2f}s")
         print(f"Throughput: {len(urls)/elapsed:.2f} URLs/sec")
-        print(f"Total Processed: {db_stats['total']}  Success: {db_stats['success']}  Quarantined: {db_stats['quarantined']}")
+        print(f"Total: {db_stats['total']} | Success: {db_stats['success']} | Quarantined: {db_stats['quarantined']}")
         print("\nPer-Worker Breakdown:")
         for w, s in self.worker_stats.items():
             print(f"  {w}: {s['processed']} processed ({s['success']} ok, {s['quarantined']} blocked)")
