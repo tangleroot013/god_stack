@@ -3,6 +3,7 @@
 Real-time dashboard that polls /metrics endpoint.
 Shows live worker progress, throughput, ETA.
 """
+import requests_unixsocket
 import requests
 import time
 from datetime import timedelta
@@ -17,7 +18,7 @@ def format_progress_bar(processed, total, width=30):
 def display_dashboard():
     """Fetch metrics and display live dashboard."""
     try:
-        resp = requests.get("http://127.0.0.1:5555/metrics", timeout=2)
+        resp = requests_unixsocket.Session().get("http+unix://%2Ftmp%2Fmetrics.sock/metrics", timeout=2)
         data = resp.json()
     except:
         print("[!] Metrics server not responding. Start metrics_server.py")

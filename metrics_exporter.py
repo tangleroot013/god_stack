@@ -1,3 +1,4 @@
+import requests_unixsocket
 from prometheus_client import Counter, Gauge, start_http_server
 
 # Labeled Counters

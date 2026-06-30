@@ -1,3 +1,4 @@
+import requests_unixsocket
 import tkinter as tk
 import logging
 
