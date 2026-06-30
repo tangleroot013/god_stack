@@ -20,3 +20,8 @@ bulk_targets.txt
 test.csv
 *.sh
 upgrade_god_stack.py
+
+# Runtime logs and backups
+*.log
+*.csv
+*.bak
