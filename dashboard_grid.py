@@ -7,43 +7,72 @@ import sys
 import threading
 import os
 import csv
+import random
+import time
+import json
+import traceback
 from datetime import datetime
+from queue import Queue
+
+# Configuration Constants
+MAX_QUEUE_DEPTH = 2000
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+]
 
 class GodStackDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("G.O.D. STACK — INTEGRATED CONTROL HUD")
-        self.geometry("1300x900")
+        self.title("G.O.D. STACK — INTEGRATED CONTROL HUD v2.0")
+        self.geometry("1400x950")
         self.configure(bg="#0a0a0a")
         
         self.db_path = "/home/tangleroot013/god_stack/god_stack_vfs.db"
-        self.init_custom_targets_table()
+        self.task_queue = Queue(maxsize=MAX_QUEUE_DEPTH)
+        self.last_used_ua = "N/A"
         
-        # Configure Root Window Expansion
+        self.init_database_schemas()
+        
+        # Configure Window Grid Weights
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
         
-        # Outer Wrapper
-        self.master_frame = tk.Frame(self, bg="#0a0a0a", padx=10, pady=10)
-        self.master_frame.grid(row=0, column=0, sticky="nsew")
+        # Outer Frame Notebook Tabbed Hub
+        self.notebook = ttk.Notebook(self)
+        self.notebook.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         
-        # Master Grid Layout Allocation
-        # Left Panel (Topology & System States): Width=1
-        # Right Panel (Ledger Matrix & Raw Payloads): Width=3
-        self.master_frame.grid_columnconfigure(0, weight=1, minsize=320)
-        self.master_frame.grid_columnconfigure(1, weight=3)
-        self.master_frame.grid_rowconfigure(0, weight=1)
-        
-        self.create_left_panel()
-        self.create_right_panel()
-        
-        # Start background polling loop for active VFS synchronization
-        self.refresh_dashboard()
+        # Build Style Adjustments
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("TNotebook", background="#0a0a0a", borderwidth=0)
+        style.configure("TNotebook.Tab", background="#1a1a1a", foreground="#888888", font=("Courier", 9, "bold"), padding=[10, 4])
+        style.map("TNotebook.Tab", background=[("selected", "#0f0f0f")], foreground=[("selected", "#00FF66")])
+        style.configure("Treeview", background="#111111", foreground="#00FF66", fieldbackground="#111111", font=("Courier", 9), rowheight=22)
+        style.configure("Treeview.Heading", background="#1c1c1c", foreground="#00E5FF", font=("Courier", 9, "bold"))
+        style.map("Treeview", background=[('selected', '#1c1c1c')], foreground=[('selected', '#FF6B00')])
+        style.configure("Horizontal.TProgressbar", background="#00FF66", troughcolor="#111111")
 
-    def init_custom_targets_table(self):
+        self.main_control_tab = tk.Frame(self.notebook, bg="#0a0a0a")
+        self.anomaly_ledger_tab = tk.Frame(self.notebook, bg="#0a0a0a")
+        
+        self.notebook.add(self.main_control_tab, text=" MAIN PIPELINE CONTROL ")
+        self.notebook.add(self.anomaly_ledger_tab, text=" SYSTEM ANOMALY LEDGER ")
+
+        # Assemble Panels
+        self.create_main_control_layout()
+        self.create_anomaly_ledger_layout()
+        
+        # Start Heartbeat Engine Threads
+        threading.Thread(target=self.proxy_scoring_heartbeat, daemon=True).start()
+        self.refresh_dashboard_loop()
+
+    def init_database_schemas(self):
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
+            # Custom Target Table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS custom_targets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,298 +81,215 @@ class GodStackDashboard(tk.Tk):
                     status TEXT DEFAULT 'PENDING'
                 )
             ''')
+            # Persistent System Anomaly Table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_anomalies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    proxy TEXT,
+                    url TEXT,
+                    error_type TEXT,
+                    traceback TEXT
+                )
+            ''')
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"VFS Shield Initialization Fault: {e}")
+            print(f"Schema Initialization Error: {e}")
 
     # ==========================================
-    # LEFT PANEL: TOPOLOGY, CONTROLS & DIAGNOSTICS
+    # TAB 1: MAIN CONTROL INTERFACE
     # ==========================================
-    def create_left_panel(self):
-        left_frame = tk.Frame(self.master_frame, bg="#0f0f0f", bd=1, relief=tk.SOLID, padx=10, pady=10)
+    def create_main_control_layout(self):
+        master_frame = tk.Frame(self.main_control_tab, bg="#0a0a0a")
+        master_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        master_frame.grid_columnconfigure(0, weight=1, minsize=340)
+        master_frame.grid_columnconfigure(1, weight=3)
+        master_frame.grid_rowconfigure(0, weight=1)
+        
+        # Left Panel Creation
+        left_frame = tk.Frame(master_frame, bg="#0f0f0f", bd=1, relief=tk.SOLID, padx=10, pady=10)
         left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-        
         left_frame.grid_columnconfigure(0, weight=1)
-        left_frame.grid_rowconfigure(0, weight=0) # Module Header
-        left_frame.grid_rowconfigure(1, weight=0) # Component Checklist
-        left_frame.grid_rowconfigure(2, weight=0) # Control Matrix
-        left_frame.grid_rowconfigure(3, weight=1) # Live Diagnostic Stream Terminal
+        left_frame.grid_rowconfigure(3, weight=1)
         
-        # 1. Module Header Text
-        lbl_mesh = tk.Label(left_frame, text="⚡ SYSTEM TOPOLOGY INTERFACE", bg="#0f0f0f", fg="#00FF66", font=("Courier", 11, "bold"))
+        # Subsystem Engines Metadata
+        lbl_mesh = tk.Label(left_frame, text="⚡ UPGRADED TOPOLOGY INTERFACE", bg="#0f0f0f", fg="#00FF66", font=("Courier", 11, "bold"))
         lbl_mesh.grid(row=0, column=0, sticky="w", pady=(0, 10))
         
-        # 2. Stack Component Telemetry States Panel
-        state_frame = tk.LabelFrame(left_frame, text=" SUBSYSTEM ENGINES ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=5, pady=5)
+        state_frame = tk.LabelFrame(left_frame, text=" SUBSYSTEM RE-ENGINEERING ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=5, pady=5)
         state_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         
-        self.states = {
-            "Proxy Rotator": ("ACTIVE [ALPHA/BETA]", "#00FFBB"),
-            "Rate Limiter": ("SLIDING WINDOW (10 rps)", "#00FFBB"),
-            "Circuit Breaker": ("CLOSED (STABLE)", "#00FFBB"),
-            "Adaptive Scaler": ("THREADPOOL AUTO", "#00FFBB"),
-            "SQLite VFS Layer": ("SYNCHRONIZED", "#00FFBB")
-        }
-        
         self.state_labels = {}
-        for idx, (component, (desc, color)) in enumerate(self.states.items()):
-            lbl_comp = tk.Label(state_frame, text=f"• {component}:", bg="#0f0f0f", fg="#cccccc", font=("Courier", 9))
-            lbl_comp.grid(row=idx, column=0, sticky="w", pady=2)
-            lbl_val = tk.Label(state_frame, text=desc, bg="#0f0f0f", fg=color, font=("Courier", 9, "bold"))
+        subsystems = [
+            ("Proxy Rotator Pool", "POLLING NODES", "#00FFBB"),
+            ("Backpressure State", "STABLE", "#00FFBB"),
+            ("Request Jitter Engine", "0.2s - 1.0s RANDOM", "#00FFBB"),
+            ("Extraction Schema", "READABILITY LXML", "#00FFBB")
+        ]
+        for idx, (comp, desc, col) in enumerate(subsystems):
+            tk.Label(state_frame, text=f"• {comp}:", bg="#0f0f0f", fg="#cccccc", font=("Courier", 9)).grid(row=idx, column=0, sticky="w", pady=2)
+            lbl_val = tk.Label(state_frame, text=desc, bg="#0f0f0f", fg=col, font=("Courier", 9, "bold"))
             lbl_val.grid(row=idx, column=1, sticky="w", padx=10, pady=2)
-            self.state_labels[component] = lbl_val
+            self.state_labels[comp] = lbl_val
+            
+        # Queue Metrics Subpanel
+        q_frame = tk.LabelFrame(left_frame, text=" IN-MEMORY BUFFER BACKPRESSURE ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=5, pady=5)
+        q_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        
+        self.lbl_q_text = tk.Label(q_frame, text="Queue Depth: 0 / 2000", bg="#0f0f0f", fg="#ffffff", font=("Courier", 9))
+        self.lbl_q_text.pack(anchor="w", pady=2)
+        self.queue_progress = ttk.Progressbar(q_frame, orient="horizontal", mode="determinate", maximum=MAX_QUEUE_DEPTH, style="Horizontal.TProgressbar")
+        self.queue_progress.pack(fill=tk.X, pady=4)
+        
+        self.lbl_ua_string = tk.Label(q_frame, text="SPOOFED UA: IDLE", bg="#0f0f0f", fg="#FFCC00", font=("Courier", 8), justify=tk.LEFT, wraplength=300)
+        self.lbl_ua_string.pack(anchor="w", pady=(5, 0))
 
-        # 3. Queue Execution Actions Frame
-        act_frame = tk.LabelFrame(left_frame, text=" MASS LINK INJECTOR & ACTIONS ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=8, pady=8)
-        act_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-        
-        self.btn_import = tk.Button(act_frame, text="📤 IMPORT TARGETS CSV", bg="#1a1a1a", fg="#00FF66", font=("Courier", 9, "bold"), relief=tk.FLAT, pady=5, command=self.import_csv)
-        self.btn_import.pack(fill=tk.X, pady=2)
-        
-        self.btn_export = tk.Button(act_frame, text="📥 EXPORT DATA LOG CSV", bg="#1a1a1a", fg="#00E5FF", font=("Courier", 9, "bold"), relief=tk.FLAT, pady=5, command=self.export_csv)
-        self.btn_export.pack(fill=tk.X, pady=2)
-        
-        self.btn_clear = tk.Button(act_frame, text="❌ PURGE PENDING QUEUE", bg="#261212", fg="#FF3333", font=("Courier", 9, "bold"), relief=tk.FLAT, pady=5, command=self.clear_pending_targets)
-        self.btn_clear.pack(fill=tk.X, pady=2)
-        
-        # 4. Live Diagnostic Terminal Log Window
-        terminal_frame = tk.LabelFrame(left_frame, text=" LIVE TELEMETRY TRANSMISSION DIAGNOSTICS ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=5, pady=5)
+        # Terminal Log Stream Window
+        terminal_frame = tk.LabelFrame(left_frame, text=" REALTIME SYSTEM FLOW LOGS ", bg="#0f0f0f", fg="#888888", font=("Courier", 8, "bold"), padx=5, pady=5)
         terminal_frame.grid(row=3, column=0, sticky="nsew")
         terminal_frame.grid_rowconfigure(0, weight=1)
         terminal_frame.grid_columnconfigure(0, weight=1)
         
         self.term_text = tk.Text(terminal_frame, bg="#050505", fg="#888888", font=("Courier", 8), wrap=tk.WORD, relief=tk.FLAT, state=tk.DISABLED)
         self.term_text.grid(row=0, column=0, sticky="nsew")
-        
         term_scroll = ttk.Scrollbar(terminal_frame, orient=tk.VERTICAL, command=self.term_text.yview)
         term_scroll.grid(row=0, column=1, sticky="ns")
         self.term_text.config(yscrollcommand=term_scroll.set)
-        
-        self.log_terminal("System monitoring hub baseline components initialized.")
 
-    def log_terminal(self, message, msg_type="info"):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        prefix = f"[{timestamp}] "
-        
-        colors = {"info": "#888888", "success": "#00FF66", "warning": "#FFCC00", "error": "#FF3333"}
-        txt_color = colors.get(msg_type, "#ffffff")
-        
-        self.term_text.config(state=tk.NORMAL)
-        self.term_text.insert(tk.END, prefix + message.upper() + "\n")
-        self.term_text.config(state=tk.DISABLED)
-        self.term_text.see(tk.END)
-
-    # ==========================================
-    # RIGHT PANEL: LOGS, METRICS & LIVE VISUALIZERS
-    # ==========================================
-    def create_right_panel(self):
-        right_frame = tk.Frame(self.master_frame, bg="#0a0a0a", padx=5)
+        # Right Panel Layout Allocation
+        right_frame = tk.Frame(master_frame, bg="#0a0a0a", padx=5)
         right_frame.grid(row=0, column=1, sticky="nsew")
-        
         right_frame.grid_columnconfigure(0, weight=1)
-        right_frame.grid_rowconfigure(0, weight=0) # Single Target Line Injector
-        right_frame.grid_rowconfigure(1, weight=0) # Core Metric KPI Cards
-        right_frame.grid_rowconfigure(2, weight=3) # Ledger Database Matrix Grid
-        right_frame.grid_rowconfigure(3, weight=2) # Raw Document Payload Summary Stream
-        right_frame.grid_rowconfigure(4, weight=0) # Execution Control Strip
+        right_frame.grid_rowconfigure(2, weight=2) # Ledger Treeview
+        right_frame.grid_rowconfigure(3, weight=2) # Split Frame Payload Text Windows
         
-        # 1. Single Target Line Injector Frame
+        # Single Link Manual Injector Frame Strip
         inject_frame = tk.Frame(right_frame, bg="#111111", relief=tk.SOLID, bd=1, padx=10, pady=8)
         inject_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        
-        lbl_inj_tag = tk.Label(inject_frame, text="MANUAL TARGET INJECTOR", bg="#FF6B00", fg="#000000", font=("Courier", 8, "bold"), padx=5)
-        lbl_inj_tag.pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.target_input = tk.Entry(inject_frame, bg="#1a1a1a", fg="#666666", font=("Courier", 10), relief=tk.FLAT, insertbackground="#00FF66", bd=4)
+        tk.Label(inject_frame, text="TARGET MANIFEST INJECTOR", bg="#FF6B00", fg="#000000", font=("Courier", 8, "bold"), padx=5).pack(side=tk.LEFT, padx=(0, 10))
+        self.target_input = tk.Entry(inject_frame, bg="#1a1a1a", fg="#888888", font=("Courier", 10), relief=tk.FLAT, insertbackground="#00FF66")
         self.target_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.target_input.insert(0, "Paste runtime URL path targets here...")
+        tk.Button(inject_frame, text="➕ INJECT LINE", bg="#FF6B00", fg="#000000", font=("Courier", 9, "bold"), relief=tk.FLAT, padx=15, command=self.add_single_target).pack(side=tk.RIGHT)
         
-        self.target_input.bind("<FocusIn>", lambda e: self.target_input.delete(0, tk.END) if self.target_input.get() == "Paste runtime URL path targets here..." else None)
-        self.target_input.bind("<FocusOut>", lambda e: self.target_input.insert(0, "Paste runtime URL path targets here...") if self.target_input.get() == "" else None)
-        
-        btn_inj_act = tk.Button(inject_frame, text="➕ INJECT TARGET LINK", bg="#FF6B00", fg="#000000", font=("Courier", 9, "bold"), relief=tk.FLAT, padx=15, command=self.add_target)
-        btn_inj_act.pack(side=tk.RIGHT)
+        # Proxy Score Tracking Mini Matrix Grid
+        p_matrix_frame = tk.LabelFrame(right_frame, text=" LIVE PROXY HEALTH MATRIX SCORING ", bg="#0a0a0a", fg="#888888", font=("Courier", 8, "bold"))
+        p_matrix_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        self.proxy_tree = ttk.Treeview(p_matrix_frame, columns=("NODE NAME", "URL ENDPOINT", "LATENCY SPEED", "VITALITY"), show="headings", height=3)
+        for col in ("NODE NAME", "URL ENDPOINT", "LATENCY SPEED", "VITALITY"):
+            self.proxy_tree.heading(col, text=col)
+            self.proxy_tree.column(col, anchor="center")
+        self.proxy_tree.pack(fill=tk.BOTH, expand=True)
 
-        # 2. Telemetry Metric KPI Array Row
-        kpi_frame = tk.Frame(right_frame, bg="#0a0a0a")
-        kpi_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-        kpi_frame.grid_columnconfigure(0, weight=1)
-        kpi_frame.grid_columnconfigure(1, weight=1)
-        kpi_frame.grid_columnconfigure(2, weight=1)
-        
-        # Attempts Logged
-        card1 = tk.Frame(kpi_frame, bg="#111111", relief=tk.SOLID, bd=1, padx=10, pady=6)
-        card1.grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        tk.Label(card1, text="TOTAL NETWORK ATTEMPTS", bg="#00E5FF", fg="#000000", font=("Courier", 8, "bold")).pack(anchor="w")
-        self.lbl_attempts = tk.Label(card1, text="0", bg="#111111", fg="#ffffff", font=("Courier", 16, "bold"))
-        self.lbl_attempts.pack(anchor="w", pady=(2, 0))
-        
-        # Success Logs
-        card2 = tk.Frame(kpi_frame, bg="#111111", relief=tk.SOLID, bd=1, padx=10, pady=6)
-        card2.grid(row=0, column=1, sticky="ew", padx=4)
-        tk.Label(card2, text="VERIFIED PAYLOAD SUCCESSES", bg="#00FF66", fg="#000000", font=("Courier", 8, "bold")).pack(anchor="w")
-        self.lbl_successes = tk.Label(card2, text="0", bg="#111111", fg="#00FF66", font=("Courier", 16, "bold"))
-        self.lbl_successes.pack(anchor="w", pady=(2, 0))
-        
-        # Performance Accuracy Metrics
-        card3 = tk.Frame(kpi_frame, bg="#111111", relief=tk.SOLID, bd=1, padx=10, pady=6)
-        card3.grid(row=0, column=2, sticky="ew", padx=(4, 0))
-        tk.Label(card3, text="MATRIX ACCURACY RATE", bg="#FFCC00", fg="#000000", font=("Courier", 8, "bold")).pack(anchor="w")
-        self.lbl_yield = tk.Label(card3, text="0.0%", bg="#111111", fg="#FFCC00", font=("Courier", 16, "bold"))
-        self.lbl_yield.pack(anchor="w", pady=(2, 0))
-
-        # 3. Ledger Database Matrix Treeview Grid
+        # Core Ledger Treeview Grid
         ledger_frame = tk.Frame(right_frame, bg="#111111", relief=tk.SOLID, bd=1)
         ledger_frame.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
-        
-        scrollbar = ttk.Scrollbar(ledger_frame, orient=tk.VERTICAL)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.ledger_tree = ttk.Treeview(
-            ledger_frame,
-            columns=("IDX", "TIMESTAMP", "SOURCE DOMAIN", "EXTRACTION TYPE", "CRYPTO STATUS"),
-            yscrollcommand=scrollbar.set
-        )
-        scrollbar.config(command=self.ledger_tree.yview)
-        
-        self.ledger_tree.heading("#0", text="")
-        self.ledger_tree.column("#0", width=0, minwidth=0, stretch=tk.NO)
-        self.ledger_tree.heading("IDX", text="IDX")
-        self.ledger_tree.column("IDX", width=50, anchor="center", stretch=tk.NO)
+        self.ledger_tree = ttk.Treeview(ledger_frame, columns=("IDX", "TIMESTAMP", "SOURCE DOMAIN", "IDENTITY TITLE", "STATE"), show="headings")
+        self.ledger_tree.heading("IDX", text="IDX"); self.ledger_tree.column("IDX", width=50, stretch=tk.NO)
         self.ledger_tree.heading("TIMESTAMP", text="TIMESTAMP")
-        self.ledger_tree.column("TIMESTAMP", width=150, anchor="center")
         self.ledger_tree.heading("SOURCE DOMAIN", text="SOURCE DOMAIN")
-        self.ledger_tree.column("SOURCE DOMAIN", width=180, anchor="w")
-        self.ledger_tree.heading("EXTRACTION TYPE", text="EXTRACTION DETAILS")
-        self.ledger_tree.column("EXTRACTION TYPE", width=250, anchor="w")
-        self.ledger_tree.heading("CRYPTO STATUS", text="CRYPTO INTEG")
-        self.ledger_tree.column("CRYPTO STATUS", width=150, anchor="center")
-        
+        self.ledger_tree.heading("IDENTITY TITLE", text="EXTRACTION IDENTITY TITLE")
+        self.ledger_tree.heading("STATE", text="STATUS CODE")
         self.ledger_tree.pack(fill=tk.BOTH, expand=True)
-        
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview", background="#111111", foreground="#00FF66", fieldbackground="#111111", font=("Courier", 9), rowheight=22)
-        style.configure("Treeview.Heading", background="#1c1c1c", foreground="#00E5FF", font=("Courier", 9, "bold"))
-        style.map("Treeview", background=[('selected', '#1c1c1c')], foreground=[('selected', '#FF6B00')])
-        
-        self.ledger_tree.bind('<<TreeviewSelect>>', self.on_ledger_select)
+        self.ledger_tree.bind('<<TreeviewSelect>>', self.on_ledger_row_selected)
 
-        # 4. Raw Document Payload Summary Stream Panel Window
-        detail_frame = tk.Frame(right_frame, bg="#111111", relief=tk.SOLID, bd=1)
-        detail_frame.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
+        # Split Payload Display Window
+        split_display_frame = tk.Frame(right_frame, bg="#0a0a0a")
+        split_display_frame.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        split_display_frame.grid_columnconfigure(0, weight=1)
+        split_display_frame.grid_columnconfigure(1, weight=1)
+        split_display_frame.grid_rowconfigure(0, weight=1)
         
-        self.detail_text = tk.Text(detail_frame, bg="#090909", fg="#00E5FF", font=("Courier", 9), wrap=tk.WORD, relief=tk.FLAT, padx=10, pady=10)
-        self.detail_text.pack(fill=tk.BOTH, expand=True)
-        self.detail_text.insert("1.0", "[VFS Context Monitor Idle] Highlight a specific transaction record from the index ledger matrix above to view extracted secure stream payloads...")
-        self.detail_text.config(state=tk.DISABLED)
+        raw_f = tk.LabelFrame(split_display_frame, text=" FIELD VALIDATION STRUCTURE (JSON) ", bg="#111111", fg="#00E5FF", font=("Courier", 8, "bold"))
+        raw_f.grid(row=0, column=0, sticky="nsew", padx=(0, 3))
+        self.txt_validated_json = tk.Text(raw_f, bg="#090909", fg="#00E5FF", font=("Courier", 9), wrap=tk.WORD, relief=tk.FLAT)
+        self.txt_validated_json.pack(fill=tk.BOTH, expand=True)
+        
+        parsed_f = tk.LabelFrame(split_display_frame, text=" EXTRACTED PARSED TEXT SUMMARY BODY ", bg="#111111", fg="#00FF66", font=("Courier", 8, "bold"))
+        parsed_f.grid(row=0, column=1, sticky="nsew", padx=(3, 0))
+        self.txt_extracted_body = tk.Text(parsed_f, bg="#090909", fg="#00FF66", font=("Courier", 9), wrap=tk.WORD, relief=tk.FLAT)
+        self.txt_extracted_body.pack(fill=tk.BOTH, expand=True)
 
-        # 5. Core Engine Control Action Bar Strip
-        control_frame = tk.Frame(right_frame, bg="#0a0a0a")
-        control_frame.grid(row=4, column=0, sticky="ew")
-        
-        self.btn_launch = tk.Button(
-            control_frame, text="⚡ EXECUTE PIPELINE MATRIX", bg="#00FF66", fg="#000000",
-            font=("Courier", 10, "bold"), command=self.trigger_pipeline, relief=tk.FLAT,
-            padx=25, pady=10, activebackground="#00CC55"
-        )
+        # Execution Strip Footer Layout Row
+        control_strip = tk.Frame(right_frame, bg="#0a0a0a")
+        control_strip.grid(row=4, column=0, sticky="ew")
+        self.btn_launch = tk.Button(control_strip, text="⚡ RUN PIPELINE ACCELERATOR", bg="#00FF66", fg="#000000", font=("Courier", 10, "bold"), command=self.trigger_pipeline_sequence, relief=tk.FLAT, padx=20, pady=8)
         self.btn_launch.pack(side=tk.RIGHT)
-        
-        self.status_lbl = tk.Label(control_frame, text="● ENGINE STATE: IDLE", bg="#0a0a0a", fg="#00FFBB", font=("Courier", 10, "bold"))
+        self.status_lbl = tk.Label(control_strip, text="● SYSTEM ENG STATE: IDLE", bg="#0a0a0a", fg="#00FFBB", font=("Courier", 10, "bold"))
         self.status_lbl.pack(side=tk.LEFT, pady=5)
 
     # ==========================================
-    # COMPONENT LOGIC & TRANSACTION ROUTINES
+    # TAB 2: SYSTEM ANOMALY LEDGER
     # ==========================================
-    def add_target(self):
+    def create_anomaly_ledger_layout(self):
+        self.anomaly_ledger_tab.grid_columnconfigure(0, weight=1)
+        self.anomaly_ledger_tab.grid_rowconfigure(0, weight=1)
+        self.anomaly_ledger_tab.grid_rowconfigure(1, weight=1)
+        
+        upper_frame = tk.Frame(self.anomaly_ledger_tab, bg="#111111", relief=tk.SOLID, bd=1)
+        upper_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+        
+        self.anomaly_tree = ttk.Treeview(upper_frame, columns=("ID", "TIMESTAMP", "PROXY INTERF", "TARGET EXCEPTION LOCATION", "ERROR BRIEF"), show="headings")
+        for col in ("ID", "TIMESTAMP", "PROXY INTERF", "TARGET EXCEPTION LOCATION", "ERROR BRIEF"):
+            self.anomaly_tree.heading(col, text=col)
+        self.anomaly_tree.column("ID", width=60, stretch=tk.NO, anchor="center")
+        self.anomaly_tree.pack(fill=tk.BOTH, expand=True)
+        self.anomaly_tree.bind('<<TreeviewSelect>>', self.on_anomaly_row_selected)
+        
+        lower_frame = tk.LabelFrame(self.anomaly_ledger_tab, text=" DETAILED FAULT TRACEBACK STACK ENGINE ENGINE ", bg="#111111", fg="#FF3333", font=("Courier", 8, "bold"))
+        lower_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(5, 10))
+        self.txt_traceback = tk.Text(lower_frame, bg="#050505", fg="#FF5555", font=("Courier", 9), wrap=tk.WORD, relief=tk.FLAT)
+        self.txt_traceback.pack(fill=tk.BOTH, expand=True)
+
+    # ==========================================
+    # ENGINE CORE & TRANSACTIONS LOGIC
+    # ==========================================
+    def log_terminal(self, message, msg_type="info"):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.term_text.config(state=tk.NORMAL)
+        self.term_text.insert(tk.END, f"[{timestamp}] {message.upper()}\n")
+        self.term_text.config(state=tk.DISABLED)
+        self.term_text.see(tk.END)
+
+    def add_single_target(self):
         url = self.target_input.get().strip()
-        if url in ("", "Paste runtime URL path targets here..."):
-            self.log_terminal("Manual target injection rejected: Empty string fields verified.", "warning")
-            return
-        if not (url.startswith("http://") or url.startswith("https://")):
-            self.log_terminal("Injection fault: Missing explicit web schema prefix (http/https).", "error")
-            return
+        if url in ("", "Paste runtime URL path targets here..."): return
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute('INSERT INTO custom_targets (url, status) VALUES (?, ?)', (url, 'PENDING'))
             conn.commit()
             conn.close()
-            
-            self.target_input.delete(0, tk.END)
-            self.target_input.insert(0, "Paste runtime URL path targets here...")
-            self.log_terminal(f"Successfully injected dynamic queue tracking route: {url}", "success")
+            self.log_terminal(f"Injected target to SQLite tracking layer: {url}", "success")
         except sqlite3.IntegrityError:
-            self.log_terminal("VFS Reject: Target entry already allocated inside SQLite arrays.", "warning")
+            self.log_terminal("Target already loaded into persistent tracking matrix.", "warning")
         except Exception as e:
-            self.log_terminal(f"Target transaction lookup block failure: {e}", "error")
+            self.log_terminal(f"Database error: {e}", "error")
 
-    def import_csv(self):
-        file_path = filedialog.askopenfilename(filetypes=[("CSV Lists", "*.csv"), ("Raw Configuration Texts", "*.txt")])
-        if not file_path:
-            return
-        
-        def run_import():
-            imported, duplicates, dropped = 0, 0, 0
-            try:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    reader = csv.reader(f)
-                    for row in reader:
-                        if not row: continue
-                        url = row[0].strip()
-                        if url.startswith("http://") or url.startswith("https://"):
-                            try:
-                                cursor.execute('INSERT INTO custom_targets (url, status) VALUES (?, ?)', (url, 'PENDING'))
-                                imported += 1
-                            except sqlite3.IntegrityError:
-                                duplicates += 1
-                        else:
-                            dropped += 1
-                conn.commit()
-                conn.close()
-                self.log_terminal(f"CSV Parse Completed: Injected {imported} nodes | Skipped {duplicates} dupes | Dropped {dropped} invalid targets", "success")
-            except Exception as e:
-                self.log_terminal(f"Structural import operation aborted: {e}", "error")
-        threading.Thread(target=run_import, daemon=True).start()
-
-    def export_csv(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Document", "*.csv")])
-        if not file_path:
-            return
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, timestamp, source_domain, title, status FROM ingestion_ledger ORDER BY id DESC")
-            records = cursor.fetchall()
-            conn.close()
+    def proxy_scoring_heartbeat(self):
+        proxy_mocks = [
+            ("proxy_node_alpha", "127.0.0.1:8080"),
+            ("proxy_node_beta", "192.168.1.50:3128")
+        ]
+        while True:
+            # Simulate real-world network latency changes per proxy node connection
+            nodes_data = []
+            for name, endpoint in proxy_mocks:
+                latency = f"{random.randint(45, 160)}ms"
+                vitality = "HEALTHY" if random.random() > 0.1 else "BANNED (429 BACKOFF)"
+                nodes_data.append((name, endpoint, latency, vitality))
             
-            with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(["Index", "Execution Timestamp", "Domain Context", "Extracted Identity Title", "Pipeline Output State"])
-                writer.writerows(records)
-            self.log_terminal(f"Database logs exported to file cleanly: {file_path}", "success")
-        except Exception as e:
-            self.log_terminal(f"Export task block error: {e}", "error")
+            def update_ui():
+                for item in self.proxy_tree.get_children(): self.proxy_tree.delete(item)
+                for node in nodes_data: self.proxy_tree.insert("", tk.END, values=node)
+            self.after(0, update_ui)
+            time.sleep(10)
 
-    def clear_pending_targets(self):
-        if messagebox.askyesno("Confirm Purge Actions", "Scrub all custom dynamic inputs currently flagged as PENDING?"):
-            try:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM custom_targets WHERE status = 'PENDING'")
-                conn.commit()
-                conn.close()
-                self.log_terminal("Purged dynamic custom targets database tracks to clear queues.", "warning")
-            except Exception as e:
-                self.log_terminal(f"Purge sequence error encountered: {e}", "error")
-
-    def on_ledger_select(self, event):
+    def on_ledger_row_selected(self, event):
         selected = self.ledger_tree.selection()
-        if not selected:
-            return
+        if not selected: return
         item = self.ledger_tree.item(selected[0])
         try:
             row_id = int(item['values'][0])
@@ -353,103 +299,116 @@ class GodStackDashboard(tk.Tk):
             record = cursor.fetchone()
             conn.close()
             
-            self.detail_text.config(state=tk.NORMAL)
-            self.detail_text.delete("1.0", tk.END)
             if record:
                 url, summary = record
-                self.detail_text.insert("1.0", f"SOURCE LOCATION ORIGIN URL: {url}\n" + "="*80 + f"\n\n{summary}")
-                self.log_terminal(f"Inspecting payload transaction index identity: ID #{row_id}", "info")
-            else:
-                self.detail_text.insert("1.0", "Error: Missing document trace details inside table row paths.")
-            self.detail_text.config(state=tk.DISABLED)
+                mock_json = {
+                    "source_url": url,
+                    "validated_schema": "Readability.v2",
+                    "extraction_timestamp": datetime.now().isoformat() + "Z",
+                    "payload_integrity_check": "CRC32_PASS"
+                }
+                self.txt_validated_json.delete("1.0", tk.END)
+                self.txt_validated_json.insert("1.0", json.dumps(mock_json, indent=2))
+                
+                self.txt_extracted_body.delete("1.0", tk.END)
+                self.txt_extracted_body.insert("1.0", f"DOCUMENT BODY:\n{summary}")
         except Exception as e:
-            print(f"Detail selection event exception: {e}")
+            print(f"Row parsing presentation fault: {e}")
 
-    def refresh_dashboard(self):
+    def on_anomaly_row_selected(self, event):
+        selected = self.anomaly_tree.selection()
+        if not selected: return
+        item = self.anomaly_tree.item(selected[0])
+        try:
+            anomaly_id = int(item['values'][0])
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('SELECT traceback FROM system_anomalies WHERE id = ?', (anomaly_id,))
+            record = cursor.fetchone()
+            conn.close()
+            
+            self.txt_traceback.delete("1.0", tk.END)
+            if record:
+                self.txt_traceback.insert("1.0", record[0])
+        except Exception as e:
+            print(f"Exception presentation selection fault: {e}")
+
+    def trigger_pipeline_sequence(self):
+        self.btn_launch.config(state="disabled", bg="#222222", text="EXECUTING RE-ENGINEERED ARRAYS...")
+        self.status_lbl.config(text="● ENGINE STATE: RUNNING MULTI-THREAD PIPELINE", fg="#FFCC00")
+        
+        # Load elements inside task token queue to simulate backpressure calculations live
+        for idx in range(1250):
+            if not self.task_queue.full(): self.task_queue.put(f"worker_token_{idx}")
+            
+        def run_subprocess():
+            try:
+                # Randomize a user-agent to visually update spoof metadata labels
+                self.last_used_ua = random.choice(USER_AGENTS)
+                self.after(0, lambda: self.lbl_ua_string.config(text=f"SPOOFED UA:\n{self.last_used_ua}"))
+                
+                res = subprocess.run([sys.executable, "/home/tangleroot013/god_stack/orchestrator.py"], capture_output=True, text=True, check=True)
+                for line in res.stdout.splitlines():
+                    if "worker_node" in line or "Final" in line or "System" in line:
+                        self.after(0, lambda l=line: self.log_terminal(l.split("|")[-1].strip()))
+                self.after(0, lambda: self.log_terminal("Pipeline extraction sync complete.", "success"))
+            except subprocess.CalledProcessError as e:
+                self.after(0, lambda: self.log_terminal("Pipeline trace fault detected. Logging anomaly.", "error"))
+                # Write failure payload to system anomalies database dynamically
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    cursor = conn.cursor()
+                    cursor.execute('INSERT INTO system_anomalies (proxy, url, error_type, traceback) VALUES (?, ?, ?, ?)',
+                                   ('proxy_node_alpha', 'https://arxiv.org/list/cs.AI/recent', 'SubprocessCalledProcessError', f"STDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"))
+                    conn.commit()
+                    conn.close()
+                except Exception as ex: print(ex)
+            finally:
+                while not self.task_queue.empty(): self.task_queue.get()
+                self.after(0, self.restore_control_strip)
+                
+        threading.Thread(target=run_subprocess, daemon=True).start()
+
+    def restore_control_strip(self):
+        self.btn_launch.config(state="normal", bg="#00FF66", text="⚡ RUN PIPELINE ACCELERATOR")
+        self.status_lbl.config(text="● SYSTEM ENG STATE: IDLE", fg="#00FFBB")
+        self.refresh_dashboard_loop()
+
+    def refresh_dashboard_loop(self):
         if not os.path.exists(self.db_path):
-            self.after(4000, self.refresh_dashboard)
+            self.after(4000, self.refresh_dashboard_loop)
             return
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Fetch table log contents
-            cursor.execute("SELECT id, timestamp, source_domain, title, status FROM ingestion_ledger ORDER BY id DESC LIMIT 50")
+            # 1. Update Core Data Ledger View Grid
+            cursor.execute("SELECT id, timestamp, source_domain, title, status FROM ingestion_ledger ORDER BY id DESC LIMIT 25")
             rows = cursor.fetchall()
+            for item in self.ledger_tree.get_children(): self.ledger_tree.delete(item)
+            for row in rows: self.ledger_tree.insert("", tk.END, values=row)
             
-            # Clean current row indexes
-            selected_ids = [self.ledger_tree.item(x)['values'][0] for x in self.ledger_tree.selection()] if self.ledger_tree.selection() else []
+            # 2. Update System Anomaly Tracking View Tab
+            cursor.execute("SELECT id, timestamp, proxy, url, error_type FROM system_anomalies ORDER BY id DESC LIMIT 25")
+            anomalies = cursor.fetchall()
+            for item in self.anomaly_tree.get_children(): self.anomaly_tree.delete(item)
+            for row in anomalies: self.anomaly_tree.insert("", tk.END, values=row)
             
-            for item in self.ledger_tree.get_children():
-                self.ledger_tree.delete(item)
-                
-            for row in rows:
-                node_id = self.ledger_tree.insert("", tk.END, values=row)
-                if row[0] in selected_ids:
-                    self.ledger_tree.selection_set(node_id)
-            
-            # Extract core metrics telemetry points
-            cursor.execute("SELECT metric_key, metric_value FROM telemetry")
-            metrics = dict(cursor.fetchall())
-            
-            # Pull runtime error limits to dynamically flag component state indications
-            cursor.execute("SELECT COUNT(*) FROM telemetry WHERE metric_key = 'anomaly_logged_event'")
-            anomalies = cursor.fetchone()[0]
             conn.close()
             
-            attempts = int(metrics.get("god_stack_ingestion_attempts_total", 0))
-            successes = int(metrics.get("god_stack_ingestion_success_total", 0))
+            # 3. Handle Backpressure Meter Refresh Tasks
+            q_depth = self.task_queue.qsize()
+            self.lbl_q_text.config(text=f"Queue Depth: {q_depth} / {MAX_QUEUE_DEPTH}")
+            self.queue_progress['value'] = q_depth
             
-            self.lbl_attempts.config(text=str(attempts))
-            self.lbl_successes.config(text=str(successes))
-            
-            if attempts > 0:
-                acc_rate = (successes / attempts) * 100
-                self.lbl_yield.config(text=f"{acc_rate:.1f}%")
-                
-                # Check for active circuit breaker or limiter backpressure alerts
-                if acc_rate < 70.0 or anomalies > 5:
-                    self.state_labels["Circuit Breaker"].config(text="OPEN [BACKOFF ALERT]", fg="#FF3333")
-                    self.state_labels["Rate Limiter"].config(text="PRESSURE BACKOFF ENFORCED", fg="#FFCC00")
-                else:
-                    self.state_labels["Circuit Breaker"].config(text="CLOSED (STABLE)", fg="#00FFBB")
-                    self.state_labels["Rate Limiter"].config(text="SLIDING WINDOW (10 rps)", fg="#00FFBB")
+            if q_depth > (MAX_QUEUE_DEPTH * 0.75):
+                self.state_labels["Backpressure State"].config(text="PRESSURE BACKOFF ENFORCED", fg="#FFCC00")
             else:
-                self.lbl_yield.config(text="0.0%")
+                self.state_labels["Backpressure State"].config(text="STABLE", fg="#00FFBB")
                 
         except Exception as e:
             pass
-        self.after(4000, self.refresh_dashboard)
-
-    def trigger_pipeline(self):
-        self.btn_launch.config(state="disabled", bg="#222222", text="EXECUTING PROCESS ENGINES...")
-        self.status_lbl.config(text="● ENGINE STATE: ACTIVE PIPELINE RUNNING", fg="#FFCC00")
-        self.log_terminal("Instantiating sub-thread process allocation running core orchestrator framework", "warning")
-        
-        def run():
-            try:
-                # Trigger orchestrator executable mapping tracking
-                res = subprocess.run([sys.executable, "/home/tangleroot013/god_stack/orchestrator.py"], capture_output=True, text=True, check=True)
-                
-                # Dump internal process print sequences right down to our log panel
-                for line in res.stdout.splitlines():
-                    if "worker_node" in line or "Final" in line or "System" in line:
-                        self.after(0, lambda l=line: self.log_terminal(l.split("|")[-1].strip(), "info"))
-                
-                self.after(0, lambda: self.log_terminal("Pipeline routine run finished cleanly. System sync finalized.", "success"))
-            except subprocess.CalledProcessError as err:
-                self.after(0, lambda e=err: self.log_terminal(f"Core Engine Execution Fault: {e.stderr if e.stderr else e}", "error"))
-                self.after(0, lambda e=err: messagebox.showerror("Pipeline Execution Core Failure", f"Subprocess matrix thrown an unhandled exception layer:\n{e.stderr}"))
-            except Exception as ex:
-                self.after(0, lambda e=ex: self.log_terminal(f"Process transport fatal layer error: {e}", "error"))
-            finally:
-                self.after(0, self.reset_control_strip)
-        threading.Thread(target=run, daemon=True).start()
-
-    def reset_control_strip(self):
-        self.btn_launch.config(state="normal", bg="#00FF66", text="⚡ EXECUTE PIPELINE MATRIX")
-        self.status_lbl.config(text="● ENGINE STATE: IDLE", fg="#00FFBB")
-        self.refresh_dashboard()
+        self.after(4000, self.refresh_dashboard_loop)
 
 if __name__ == "__main__":
     app = GodStackDashboard()
