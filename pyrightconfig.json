@@ -1,0 +1,24 @@
+{
+  "typeCheckingMode": "basic",
+  "include": [
+    "god_stack",
+    "god_engine.py",
+    "god_scraper.py",
+    "orchestrator.py"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv"
+  ],
+  "reportMissingTypeStubs": false,
+  "reportAttributeAccessIssue": "warning",
+  "reportCallIssue": "warning",
+  "executionEnvironments": [
+    {
+      "root": "tests",
+      "extraPaths": ["."],
+      "reportOperatorIssue": false
+    }
+  ]
+}

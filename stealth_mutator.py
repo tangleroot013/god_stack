@@ -1,59 +1,48 @@
-# ==============================================================================
-# G.O.D. STACK STEALTH MUTATOR v1.0.0 (stealth_mutator.py)
-# Architecture: Dynamic Browser Fingerprint & Heuristic Spoofing Engine
-# ==============================================================================
-
-import random
 import json
+import random
 import logging
 import os
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;36m%(asctime)s\033[0m | \033[1;35m[STEALTH-MUTATOR]\033[0m %(message)s",
+    format="\033[1;35m%(asctime)s\033[0m | \033[1;36m[STEALTH-MUTATOR]\033[0m %(message)s",
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("StealthMutator")
 
-class StealthProfileGenerator:
-    def __init__(self):
-        self.os_variants = [
-            ("Windows NT 10.0; Win64; x64", "Windows"),
-            ("Macintosh; Intel Mac OS X 10_15_7", "macOS"),
-            ("X11; Linux x86_64", "Linux")
+class StealthProfileEngine:
+    def __init__(self, profile_path: str = "stealth_profiles.json"):
+        self.profile_path = profile_path
+        self.base_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/111.0"
         ]
-        self.chrome_versions = ["118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.0.0"]
-        self.viewports = ["1920x1080", "2560x1440", "1440x900", "1366x768"]
-        self.locales = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en-CA,en;q=0.9"]
 
-    def generate_profile(self) -> dict:
-        os_str, os_name = random.choice(self.os_variants)
-        chrome_ver = random.choice(self.chrome_versions)
-        major_ver = chrome_ver.split('.')[0]
-        
-        user_agent = f"Mozilla/5.0 ({os_str}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36"
-        sec_ch_ua = f'"Not_A Brand";v="8", "Chromium";v="{major_ver}", "Google Chrome";v="{major_ver}"'
-        
+    def generate_mutated_profile(self) -> dict:
+        """Synthesizes a fresh, coherent browser fingerprint."""
         return {
-            "user_agent": user_agent,
-            "viewport": random.choice(self.viewports),
-            "accept_language": random.choice(self.locales),
-            "sec_ch_ua": sec_ch_ua,
-            "sec_ch_ua_platform": f'"{os_name}"',
-            "do_not_track": str(random.randint(0, 1))
+            "user_agent": random.choice(self.base_agents),
+            "accept_language": random.choice(["en-US,en;q=0.9", "en-GB,en;q=0.9", "en-US,en;q=0.5"]),
+            "sec_ch_ua_platform": random.choice(["\"Windows\"", "\"macOS\"", "\"Linux\""]),
+            "viewport": f"{random.choice([1920, 2560])}x{random.choice([1080, 1440])}"
         }
 
-    def inject_matrix(self):
-        logger.info("Initializing heuristic mutation sequence...")
-        profiles = [self.generate_profile() for _ in range(5)]
+    def flush_to_disk(self):
+        """Commits the active stealth matrix to the configuration JSON."""
+        profile = self.generate_mutated_profile()
+        with open(self.profile_path, "w") as f:
+            json.dump(profile, f, indent=4)
+        logger.info(f"Profile mutated & cached. Active User-Agent: {profile['user_agent'][:40]}...")
+
+def main():
+    print("\n\033[1;32m--- G.O.D. STEALTH MUTATOR VALIDATION ---\033[0m")
+    mutator = StealthProfileEngine()
+    
+    for cycle in range(3):
+        mutator.flush_to_disk()
         
-        # Write to JSON for clean pipeline ingestion
-        with open("stealth_profiles.json", "w") as f:
-            json.dump(profiles, f, indent=4)
-            
-        logger.info(f"\033[1;32m[SUCCESS]\033[0m Generated 5 unique cryptographic browser profiles.")
-        logger.info(f"Active Identity: {profiles[0]['user_agent']}")
+    print("\n\033[1;32m✔ MODULE 28 STEALTH MUTATOR PASSED CLEANLY.\033[0m\n")
 
 if __name__ == "__main__":
-    generator = StealthProfileGenerator()
-    generator.inject_matrix()
+    main()

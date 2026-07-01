@@ -20,7 +20,7 @@ class GodEngine:
         self.initialized = True
         logger.info("Engine context array stabilized.")
 
-    async def fetch_and_extract(self, url: str, raw_html_content: Optional[str] = None) -> Dict[str, Any]:
+    async def fetch_and_extract(self, url: str, raw_html_content: Optional[str] = None, proxy: Optional[str] = None) -> Dict[str, Any]:
         """
         Orchestrates request fetching, checks hardware frame budget constraints,
         and hands off parsing tasks to an unblocking background thread pool.
@@ -28,7 +28,8 @@ class GodEngine:
         if not self.initialized:
             raise RuntimeError("Engine context must be explicitly initialized before processing execution workflows.")
 
-        logger.info(f"Processing inbound hotpath extraction matrix sequence for: {url}")
+        proxy_status = f"Egress Shield: {proxy}" if proxy else "DIRECT ROUTE (UNSHIELDED)"
+        logger.info(f"Processing inbound hotpath extraction matrix sequence for: {url} | {proxy_status}")
 
         # Fallback simulation or direct payload parsing ingestion mapping
         html_payload = raw_html_content
@@ -51,7 +52,6 @@ class GodEngine:
             }
 
         # 2. Parallel Background Thread Executor Handoff Execution
-        # This completely offloads the synchronous C-level extraction matrix execution pass
         loop = asyncio.get_running_loop()
         logger.info(f"Offloading document tree parsing ({payload_size} bytes) to background worker core array...")
         

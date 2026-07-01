@@ -40,6 +40,7 @@ class ConnectionPoolManager:
             return
 
         if not domain:
+
             return
 
         while True:

@@ -1,33 +1,29 @@
 import sys
 import types
+import importlib
 
-# ----------------------------------------------------------------------
-# Mock prometheus_client
-# ----------------------------------------------------------------------
-if "prometheus_client" not in sys.modules:
-    prom_mock = types.ModuleType("prometheus_client")
-    class _NoOpMetric:
-        def __init__(self, *a, **kw): pass
-        def inc(self, *a, **kw): pass
-        def dec(self, *a, **kw): pass
-        def set(self, *a, **kw): pass
-        def observe(self, *a, **kw): pass
-    prom_mock.Counter = _NoOpMetric
-    prom_mock.Gauge   = _NoOpMetric
-    prom_mock.Summary = _NoOpMetric
-    prom_mock.start_http_server = lambda *a, **kw: None
-    sys.modules["prometheus_client"] = prom_mock
+# Keep a reference to the actual websockets package module
+try:
+    # Temporarily remove mock mapping if it exists to fetch the real package
+    real_ws_meta = sys.modules.pop("websockets", None)
+    real_websockets = importlib.import_module("websockets")
+finally:
+    if real_ws_meta:
+        sys.modules["websockets"] = real_ws_meta
 
-# ----------------------------------------------------------------------
-# Mock websockets (async client)
-# ----------------------------------------------------------------------
-if "websockets" not in sys.modules:
-    ws_mock = types.ModuleType("websockets")
-    class _MockWSProtocol:
-        async def recv(self): return "{}"
-        async def send(self, data): pass
-        async def close(self): pass
-    async def _mock_connect(*a, **kw):
-        return _MockWSProtocol()
-    ws_mock.connect = _mock_connect
-    sys.modules["websockets"] = ws_mock
+class DynamicMockPackage(types.ModuleType):
+    def __getattr__(self, name):
+        # Fallback to the real package implementations for live properties (like .serve or .connect)
+        return getattr(real_websockets, name)
+
+ws_mock = DynamicMockPackage("websockets")
+ws_mock.__path__ = []
+
+# Mock exceptions interface specifically for unit isolation layers
+exceptions_mock = types.ModuleType("websockets.exceptions")
+class ConnectionClosed(Exception): pass
+exceptions_mock.ConnectionClosed = ConnectionClosed
+
+ws_mock.exceptions = exceptions_mock
+sys.modules["websockets.exceptions"] = exceptions_mock
+sys.modules["websockets"] = ws_mock

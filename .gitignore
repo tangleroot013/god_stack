@@ -11,11 +11,17 @@ datasets/
 vaults/*
 !vaults/index.html
 .env
-
-# Local State & VFS Protection Matrix
 god_stack_vfs.db
-god_stack_vfs.db-journal
-god_stack_vfs.db-wal
-config/backups/*.bak
-outputs/
-logs/
+pyrightconfig.json
+config/backups/
+*.db
+god_stack_vfs.db
+bulk_targets.txt
+test.csv
+*.sh
+upgrade_god_stack.py
+
+# Runtime logs and backups
+*.log
+*.csv
+*.bak

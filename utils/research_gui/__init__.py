@@ -185,6 +185,7 @@ class GodResearchGUI:
             pass # Guarantee UI response flow even if disk space is fully locked
 
         if self.is_shutting_down:
+
             return
 
         self.set_ui_state(True)

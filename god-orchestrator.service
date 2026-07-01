@@ -5,8 +5,25 @@ After=network.target
 [Service]
 Type=simple
 User=tangleroot013
+Group=tangleroot013
 WorkingDirectory=/home/tangleroot013/god_stack
-ExecStart=/usr/bin/python3 run_production_matrix.py
+
+# Production Environment Adjustments
+Environment=GOD_STACK_ENV=production
+Environment=PYTHONUNBUFFERED=1
+Environment=PROMETHEUS_PORT=8015
+
+# Review Hardening: Protect process visibility and control process capabilities limits
+ProtectSystem=full
+ProtectHome=yes
+ProtectProc=invisible
+AmbientCapabilities=
+LimitNOFILE=4096
+NoNewPrivileges=true
+PrivateTmp=true
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+ExecStart=/home/tangleroot013/god_stack/.venv/bin/python3 run_production_matrix.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:/home/tangleroot013/god_stack/logs/daemon_stdout.log

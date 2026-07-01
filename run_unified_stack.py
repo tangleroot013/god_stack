@@ -31,7 +31,7 @@ class UnifiedExecutionMatrix:
                 valid_pool.append(normalized)
         self.sanitized_urls = valid_pool
         
-        Frontier.enqueue_batch(self.sanitized_urls)
+        Frontier().enqueue_batch(urls=self.sanitized_urls)
         logger.info(f"[SANITIZER] Target alignment complete. Secured {len(self.sanitized_urls)} production routes.")
 
     async def bootstrap(self):
@@ -44,7 +44,7 @@ class UnifiedExecutionMatrix:
         loop = asyncio.get_running_loop()
 
         while not self.shutdown_event.is_set():
-            url = Frontier.dequeue()
+            url = Frontier().dequeue()
             if not url:
                 logger.info("Frontier target queues depleted. Pausing runtime loops.")
                 break

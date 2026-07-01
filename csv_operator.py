@@ -1,0 +1,1 @@
+# G.O.D. Stack Component Standard

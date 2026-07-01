@@ -1,0 +1,20 @@
+groups:
+  - name: god_stack_alerts
+    rules:
+      - alert: HighDeadLetterRate
+        expr: rate(god_stack_nodes_quarantined_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High quarantine rate detected on god_stack pipeline"
+          description: "Target extraction failure rate has breached normal thresholds."
+
+      - alert: BufferBackpressure
+        expr: god_stack_dual_buffer_fill_ratio > 0.9
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dual buffer approaching saturation capacity"
+          description: "Primary buffer fill state has sustained > 90% load for over 1 minute."

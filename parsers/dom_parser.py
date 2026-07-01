@@ -17,6 +17,7 @@ class HardenedDOMParser:
         }
         
         if html_tree_node is None:
+        
             return extracted_data
 
         # Structural extraction for Core Content Links

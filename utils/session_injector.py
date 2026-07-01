@@ -8,7 +8,7 @@ log = logging.getLogger("SessionInjector")
 class SessionInjector:
     """Manages collection and injection of authenticated state jars into browser contexts."""
     
-    def __init__(self, storage_dir="/home/tangleroot013/god_stack/secure/sessions"):
+    def __init__(self, cookie_file=None, storage_dir="/home/tangleroot013/god_stack/secure/sessions"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

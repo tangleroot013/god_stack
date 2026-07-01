@@ -106,7 +106,8 @@ class GitAutomationMatrix:
 class UrlSanitizer:
     @staticmethod
     def normalize(raw_url: str) -> str:
-        if not raw_url or not isinstance(raw_url, str): return ""
+        if not raw_url or not isinstance(raw_url, str):
+            return ""
         cleaned = raw_url.strip()
         if cleaned.startswith("//"): cleaned = "https:" + cleaned
         elif not cleaned.startswith(("http://", "https://")): cleaned = "https://" + cleaned
@@ -124,7 +125,8 @@ class CourlanRouter:
         pristine_base = UrlSanitizer.normalize(url)
         try:
             cleaned_url = courlan.clean_url(pristine_base)
-            if not cleaned_url or not courlan.validate_url(cleaned_url): return ""
+            if not cleaned_url or not courlan.validate_url(cleaned_url):
+                return ""
             return cleaned_url
         except Exception: return ""
 
@@ -198,10 +200,12 @@ class DynamicProxyPoolRotator:
             try:
                 async with httpx.AsyncClient(timeout=6.0) as client:
                     res = await client.get(self.source_url)
-                    if res.status_code != 200: return 0
+                    if res.status_code != 200:
+                        return 0
                 soup = BeautifulSoup(res.text, 'html.parser')
                 table = soup.find('table', class_='table')
-                if not table: return 0
+                if not table:
+                    return 0
                 
                 new_nodes = []
                 for row in table.find_all('tr')[1:]:

@@ -1,73 +1,137 @@
 #!/usr/bin/env python3
-# ==============================================================================
-# G.O.D. STACK | FULL INGESTION -> PARSING -> STORAGE -> TELEMETRY MATRICES
-# ==============================================================================
-import time
+"""
+G.O.D. STACK — PRODUCTION RUNNER DISPATCHER
+Architecture: Isolated metrics port framework with explicit global monkeypatching.
+"""
+import asyncio
 import logging
-from god_scraper import GodScraper
-from parsers.content_extractor import ContentExtractor
-from data_storage_sync import StorageSyncEngine
+import sys
+import socket
+
+# 1. ENFORCE LOW-LEVEL REUSE & REDIRECTION FOR ALL SOCKET BINDINGS
+_original_bind = socket.socket.bind
+_original_init = socket.socket.__init__
+
+def custom_socket_init(self, *args, **kwargs):
+    _original_init(self, *args, **kwargs)
+    try:
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except Exception:
+        pass
+
+def resilient_socket_bind(self, address):
+    host, port = address
+    # Catch any module (including god_engine/third-party) trying to hijack port 8000
+    if port in (8000, 8001, 8011):
+        port = 8015
+    return _original_bind(self, (host, port))
+
+socket.socket.__init__ = custom_socket_init
+socket.socket.bind = resilient_socket_bind
+
+# Proceed with stack module imports safely
 import metrics_exporter
+from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
+from orchestrator import GodOrchestrator
+from god_engine import GodEngine
+
+# Hotpatch metrics_exporter function defaults to fully prevent port 8000 utilization
+original_start_telemetry = metrics_exporter.start_telemetry_server
+def secure_telemetry_fallback(port=8015):
+    return original_start_telemetry(port=8015)
+metrics_exporter.start_telemetry_server = secure_telemetry_fallback
+
+def patch_god_engine_interface():
+    """Maps legacy tracking vectors cleanly into modern async engine frames."""
+    def process_target_array_patched(self, target_list):
+        if not target_list:
+            return {"status": "error", "message": "Empty targeting vector array"}
+        target_url = target_list[0]
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(self.fetch_and_extract(target_url))
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            loop.close()
+            
+    GodEngine.process_target_array = process_target_array_patched
+
+patch_god_engine_interface()
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;35m%(asctime)s\033[0m | \033[1;32m[MATRIX-E2E]\033[0m %(message)s",
+    format="\033[1;35m%(asctime)s\033[0m | \033[1;31m[PROD-MATRIX]\033[0m %(message)s",
     datefmt="%H:%M:%S"
 )
-logger = logging.getLogger("MatrixE2E")
+logger = logging.getLogger("ProductionMatrix")
 
-def execute_matrix_pipeline():
-    logger.info("⚡ Activating Complete Ingestion to Storage Matrix Loop...")
-    
-    # Start the metric exposition server thread
-    metrics_exporter.start_telemetry_server(8000)
-    
-    scraper = GodScraper()
-    storage = StorageSyncEngine()
-    
-    target_stream = [
-        ("https://github.com/trending", "<html>Trending repositories context layer</html>"),
-        ("https://github.com/trending", "<html>Trending repositories context layer</html>"), # Duplicate
-        ("https://news.ycombinator.com/news", "<html>Standard Hacker News Document</html>")
-    ]
-    
-    for idx, (url, html) in enumerate(target_stream, start=1):
-        logger.info(f"▶️ Processing Pipeline Task Frame #{idx} -> {url}")
-        metrics_exporter.SYSTEM_METRICS["god_stack_ingestion_attempts_total"] += 1
+class ProductionMatrixEngine:
+    def __init__(self):
+        self.orchestrator = GodOrchestrator(use_proxies=False)
+        self.active = False
+        self._shutdown_event = asyncio.Event()
+
+    async def bootstrap(self, base_port: int = 8015):
+        logger.info("Initializing Global Matrix Daemon System Framework...")
+        secure_telemetry_fallback(port=base_port)
+
+        await self.orchestrator.initialize_matrix()
+        self.active = True
         
-        if scraper.process_target(url, html):
-            metrics_exporter.SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
-            structured_record = ContentExtractor.extract_payload(html, url)
-            
-            # Sync to SQLite WAL, checking for deduplication
-            is_new = storage.sync_record(structured_record)
-            if is_new:
-                metrics_exporter.SYSTEM_METRICS["god_stack_bytes_processed_total"] += structured_record["content_length"]
-            else:
-                metrics_exporter.SYSTEM_METRICS["god_stack_deduplication_skips_total"] += 1
-                
-        print("-" * 72)
-        time.sleep(0.5)
+        if "god_stack_active_daemons" not in SYSTEM_METRICS:
+            SYSTEM_METRICS["god_stack_active_daemons"] = 1
+        else:
+            SYSTEM_METRICS["god_stack_active_daemons"] += 1
 
-    # Output an administrative curl verification check
-    logger.info("📡 Simulating local target scrape verification check from Prometheus port...")
-    import urllib.request
+    async def production_loop(self):
+        logger.info("Core subsystems active. Entering production daemon loop...")
+        
+        mock_targets = [
+            "https://httpbin.org/html",
+            "https://httpbin.org/user-agent"
+        ]
+
+        for target in mock_targets:
+            if not self.active:
+                break
+
+            logger.info(f"Dispatching ingestion job pipeline context for target: {target}")
+            SYSTEM_METRICS["god_stack_ingestion_attempts_total"] += 1
+
+            try:
+                mission_profile = await self.orchestrator.execute_mission(target)
+                if mission_profile.get("status") == "success":
+                    logger.info(f"Ingestion mission completed successfully for vector: {target}")
+                    SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
+                else:
+                    logger.warning(f"Ingestion anomaly caught in pipeline: {mission_profile.get('message')}")
+            except Exception as e:
+                logger.error(f"Critical execution fault processing target context {target}: {e}")
+            
+            await asyncio.sleep(2.0)
+
+        await self._shutdown_event.wait()
+
+    def terminate(self):
+        logger.info("Deactivating production matrix daemon loop gracefully...")
+        self.active = False
+        if "god_stack_active_daemons" in SYSTEM_METRICS:
+            SYSTEM_METRICS["god_stack_active_daemons"] = max(0, SYSTEM_METRICS["god_stack_active_daemons"] - 1)
+        self._shutdown_event.set()
+
+async def main():
+    engine = ProductionMatrixEngine()
+    await engine.bootstrap(base_port=8015)
     try:
-        metrics_payload = urllib.request.urlopen("http://localhost:8000/metrics").read().decode("utf-8")
-        print("\n\033[1;36m=== EXPOSED PROMETHEUS SCRAPE PAYLOAD ===\033[0m")
-        print(metrics_payload)
-    except Exception as e:
-        logger.error(f"Failed to query metrics endpoint: {e}")
+        await engine.production_loop()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        engine.terminate()
 
 if __name__ == "__main__":
-    import time
-    while True:
-        try:
-            execute_matrix_pipeline()
-        except Exception as e:
-            print(f"[GOD-ENGINE] ❌ Pipeline runtime exception: {e}")
-        print("[GOD-ENGINE] ⏳ Cycle complete. Retention hold active: Keeping port 8000 open for Prometheus...")
-        time.sleep(15)
-    import time
-    print('[GOD-ENGINE] ⏳ Holding socket open for 15s for Prometheus scrape...')
-    time.sleep(15)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Received execution cancellation signal. Matrix shutdown sequence finalized.")

@@ -6,6 +6,7 @@ from daemon_core import DaemonCore
 
 @pytest.mark.asyncio
 async def test_websocket_broadcast_lifecycle():
+    from websockets.exceptions import ConnectionClosed
     # Spin up relay server on a non-standard testing port
     relay = MonitorRelay(host="127.0.0.1", port=8999)
     await relay.start()
