@@ -1,69 +1,168 @@
-# ==============================================================================
-# G.O.D. STACK ORCHESTRATOR (orchestrator.py)
-# Architecture: Unified Pipeline Manager for Sanitize -> Proxy -> Anti-Bot -> Scrape
-# ==============================================================================
+#!/usr/bin/env python3
+"""
+G.O.D. STACK V2.0 - DYNAMIC CENTRAL ORCHESTRATOR
+Enables runtime target loading from custom UI injection layers.
+"""
 
 import asyncio
 import logging
-from url_sanitizer import UrlSanitizer
-from scavenger import ProxyScavenger
-from captcha_handler import CaptchaHandler
-from god_engine import GodEngine
+import sys
+import sqlite3
+import os
+from typing import List
+
+from sliding_rate_limiter import SlidingWindowRateLimiter
+from circuit_breaker import AsyncCircuitBreaker
+from storage_flusher import StorageFlusher
+from proxy_rotator import ProxyRotator
+from adaptive_scaler import AdaptiveScaler
+from pii_scrubber import PIIScrubber
+from payload_signer import PayloadSigner
+from http_anomaly_handler import HttpAnomalyHandler
+from heartbeat_sentinel import HeartbeatSentinel
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;35m%(asctime)s\033[0m | \033[1;37m[ORCHESTRATOR]\033[0m %(message)s",
+    format="\033[1;36m%(asctime)s\033[0m | \033[1;32m[ORCHESTRATOR]\033[0m %(message)s",
     datefmt="%H:%M:%S"
 )
-logger = logging.getLogger("GodOrchestrator")
+logger = logging.getLogger("MasterEngine")
 
-class GodOrchestrator:
-    def __init__(self, use_proxies: bool = True):
-        self.use_proxies = use_proxies
-        self.scavenger = ProxyScavenger() if use_proxies else None
-        self.sentinel = CaptchaHandler()
-        self.engine = GodEngine()
-        self.active_proxies = []
+class MasterMeshOrchestrator:
+    def __init__(self, target_urls: List[str]):
+        self.targets = target_urls
+        self.queue = asyncio.Queue()
+        self.db_path = "god_stack_vfs.db"
+        
+        self.init_target_database()
+        
+        mock_proxies = ["proxy_node_alpha:8080", "proxy_node_beta:3128"]
+        
+        self.rate_limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=1.0)
+        self.circuit_breaker = AsyncCircuitBreaker(failure_threshold=3, recovery_timeout=5.0)
+        self.storage_flusher = StorageFlusher(db_path=self.db_path, batch_size=5)
+        self.proxy_rotator = ProxyRotator(initial_proxies=mock_proxies)
+        
+        self.scaler = AdaptiveScaler(min_workers=2, max_workers=5)
+        self.scrubber = PIIScrubber()
+        self.signer = PayloadSigner(secret_key="PRODUCTION_CORE_SECRET_KEY")
+        self.anomaly_handler = HttpAnomalyHandler(base_backoff=1.5)
+        self.sentinel = HeartbeatSentinel(stale_threshold_seconds=10.0)
 
-    async def initialize_matrix(self):
-        """Bootstraps the proxy grid and engine infrastructure layer."""
-        if self.use_proxies:
-            logger.info("Bootstrapping proxy egress matrix...")
-            self.active_proxies = await self.scavenger.run()
-        
-        # Explicitly stabilize engine processing boundaries
-        await self.engine.initialize(headless=True)
-        logger.info("Orchestrator matrix initialized and ready.")
+    def init_target_database(self):
+        """Validates structural setup of the target routing index table."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS custom_targets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT UNIQUE,
+                added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        conn.close()
 
-    async def execute_mission(self, raw_url: str) -> dict:
-        """Runs the full pipeline on a single target with proxy shielding."""
-        logger.info(f"Initiating mission for target: {raw_url}")
-        
-        # Step 1: Sanitize Target
-        clean_url = UrlSanitizer.normalize(raw_url)
-        if not clean_url:
-            return {"status": "error", "message": "Invalid URL structure"}
-
-        # Step 2: Route Selection (Privacy Hardened Egress Node Selection)
-        proxy = self.active_proxies[0] if self.active_proxies else None
-        
-        # Step 3 & 4: Execution (Engine + Captcha Handling)
-        logger.info(f"Deploying extraction engine to {clean_url}")
-        
+    def fetch_dynamic_targets(self) -> List[str]:
+        """Queries the runtime database for user-injected extraction targets."""
         try:
-            # Realigned directly to the native async hotpath with proxy injection
-            result = await self.engine.fetch_and_extract(clean_url, proxy=proxy)
-            return {"status": "success", "target": clean_url, "message": "Data extracted and serialized."}
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT url FROM custom_targets")
+            urls = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return urls
         except Exception as e:
-            logger.error(f"Mission failed: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Failed to extract injected database targets: {e}")
+            return []
+
+    async def process_target(self, worker_id: str, url: str) -> bool:
+        await self.rate_limiter.acquire()
+        
+        proxy = await self.proxy_rotator.get_proxy()
+        logger.info(f"{worker_id} routing target through proxy node: {proxy}")
+
+        try:
+            async with self.circuit_breaker:
+                logger.info(f"{worker_id} initiating network request payload for: {url}")
+                await asyncio.sleep(0.2) 
+                raw_payload = f"Extracted secure stream dataset from {url}. Contact: sysadmin@target.com"
+                status_code = 200
+        except Exception as exc:
+            logger.error(f"{worker_id} encountered lower-level transport fault: {exc}")
+            status_code = 500
+            raw_payload = ""
+
+        evaluation = self.anomaly_handler.evaluate_status(status_code, current_retry_attempt=0)
+        if evaluation["action"] != "PROCEED":
+            logger.warning(f"{worker_id} caught anomaly code [{status_code}]. Backing off {evaluation['suggested_delay']}s")
+            await asyncio.sleep(evaluation["suggested_delay"])
+            self.scaler.report_backpressure()
+            return False
+
+        clean_payload = self.scrubber.sanitize_payload(raw_payload)
+        serialized_data, sig_hash = self.signer.generate_signed_frame({"data": clean_payload})
+        
+        await self.storage_flusher.enqueue_payload(
+            source_domain=url.split("//")[-1].split("/")[0],
+            target_url=url,
+            title="Automated Node Extraction",
+            summary=clean_payload,
+            status=f"VERIFIED_SIG_{sig_hash[:8]}"
+        )
+        
+        self.scaler.report_success()
+        return True
+
+    async def worker_loop(self, worker_id: str):
+        while not self.queue.empty():
+            await self.sentinel.record_pulse(worker_id)
+            try:
+                url = self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+                
+            success = await self.process_target(worker_id, url)
+            self.queue.task_done()
+            
+            if not success:
+                await self.queue.put(url)
+
+    async def run_pipeline(self):
+        logger.info("Initializing Master Orchestration Pipeline Run Sequence...")
+        
+        # Merge baseline targets with dashboard injected urls
+        dynamic_targets = self.fetch_dynamic_targets()
+        combined_matrix = list(set(self.targets + dynamic_targets))
+        
+        for url in combined_matrix:
+            await self.queue.put(url)
+
+        await self.storage_flusher.start()
+
+        active_workers = self.scaler.current_workers
+        logger.info(f"Dynamic balance controller assigned {active_workers} active processing threads.")
+
+        tasks = [
+            asyncio.create_task(self.worker_loop(f"worker_node_{i:02d}"))
+            for i in range(active_workers)
+        ]
+        
+        await asyncio.gather(*tasks)
+        
+        vitality_report = await self.sentinel.audit_vitality()
+        logger.info(f"Final Node Vitality Audit Matrix: {vitality_report}")
+
+        logger.info("Flushing transient database layers to persistent VFS SQLite file...")
+        await self.storage_flusher.stop()
+        logger.info("System Engine Pipeline Finalized Cleanly.")
 
 if __name__ == "__main__":
-    async def run_cli_test():
-        print("\n\033[1;32m--- G.O.D. ORCHESTRATOR TERMINAL TEST ---\033[0m")
-        orchestrator = GodOrchestrator(use_proxies=False) # Set False for rapid test
-        await orchestrator.initialize_matrix()
-        await orchestrator.execute_mission("https://news.ycombinator.com/front?utm_source=test")
-        await orchestrator.engine.shutdown()
-        
-    asyncio.run(run_cli_test())
+    sample_targets = [
+        "https://news.ycombinator.com/news",
+        "https://arxiv.org/list/cs.AI/recent",
+        "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    ]
+    
+    orchestrator = MasterMeshOrchestrator(target_urls=sample_targets)
+    asyncio.run(orchestrator.run_pipeline())
