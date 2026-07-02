@@ -33,8 +33,8 @@ socket.socket.bind = resilient_socket_bind
 # Proceed with stack module imports safely
 import metrics_exporter
 from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
-from orchestrator import GodOrchestrator
-from god_engine import GodEngine
+from orchestrator import MasterMeshOrchestrator, parse_and_validate
+from engines.god_engine import GodEngine
 
 # Hotpatch metrics_exporter function defaults to fully prevent port 8000 utilization
 original_start_telemetry = metrics_exporter.start_telemetry_server
@@ -70,7 +70,7 @@ logger = logging.getLogger("ProductionMatrix")
 
 class ProductionMatrixEngine:
     def __init__(self):
-        self.orchestrator = GodOrchestrator(use_proxies=False)
+        self.orchestrator = MasterMeshOrchestrator(target_csv="targets.csv")
         self.active = False
         self._shutdown_event = asyncio.Event()
 
@@ -78,7 +78,7 @@ class ProductionMatrixEngine:
         logger.info("Initializing Global Matrix Daemon System Framework...")
         secure_telemetry_fallback(port=base_port)
 
-        await self.orchestrator.initialize_matrix()
+        pass
         self.active = True
         
         if "god_stack_active_daemons" not in SYSTEM_METRICS:
@@ -102,14 +102,22 @@ class ProductionMatrixEngine:
             SYSTEM_METRICS["god_stack_ingestion_attempts_total"] += 1
 
             try:
-                mission_profile = await self.orchestrator.execute_mission(target)
+                import httpx
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(target)
+                    html_content = response.text
+                payload, err = parse_and_validate(html_content, target)
+                # Structure the dictionary payload exactly how the runner loop expects it
+                mission_profile = payload if isinstance(payload, dict) else {}
+                mission_profile["status"] = "success" if err is None else "error"
+                mission_profile["message"] = err
                 if mission_profile.get("status") == "success":
                     logger.info(f"Ingestion mission completed successfully for vector: {target}")
                     SYSTEM_METRICS["god_stack_ingestion_success_total"] += 1
                 else:
                     logger.warning(f"Ingestion anomaly caught in pipeline: {mission_profile.get('message')}")
             except Exception as e:
-                logger.error(f"Critical execution fault processing target context {target}: {e}")
+                logger.error(f"Critical execution fault processing target context {target}: {type(e).__name__} - {e}")
             
             await asyncio.sleep(2.0)
 
