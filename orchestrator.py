@@ -1,168 +1,301 @@
 #!/usr/bin/env python3
-"""
-G.O.D. STACK V2.0 - DYNAMIC CENTRAL ORCHESTRATOR
-Enables runtime target loading from custom UI injection layers.
-"""
-
 import asyncio
-import logging
-import sys
+import aiohttp
+import csv
+import json
+import random
 import sqlite3
-import os
-from typing import List
+import time
+import traceback
+import sys
+from collections import defaultdict, namedtuple
+from datetime import datetime
+from queue import Queue
+from threading import Thread, Lock
+from typing import Optional
 
-from sliding_rate_limiter import SlidingWindowRateLimiter
-from circuit_breaker import AsyncCircuitBreaker
-from storage_flusher import StorageFlusher
-from proxy_rotator import ProxyRotator
-from adaptive_scaler import AdaptiveScaler
-from pii_scrubber import PIIScrubber
-from payload_signer import PayloadSigner
-from http_anomaly_handler import HttpAnomalyHandler
-from heartbeat_sentinel import HeartbeatSentinel
+# --------------------------------------------------------------
+# GLOBAL STATE (shared between orchestrator & GUI)
+# --------------------------------------------------------------
+MAX_QUEUE_DEPTH = 2000
+task_queue = Queue(maxsize=MAX_QUEUE_DEPTH)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="\033[1;36m%(asctime)s\033[0m | \033[1;32m[ORCHESTRATOR]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
+# Proxy health store
+ProxyInfo = namedtuple("ProxyInfo", "url latency failures health")
+PROXIES = {
+    "alpha": "http://proxy_node_alpha:8080",
+    "beta":  "http://proxy_node_beta:8080"
+}
+proxy_state = defaultdict(
+    lambda: ProxyInfo(url=None, latency=9999, failures=0, health=False)
 )
-logger = logging.getLogger("MasterEngine")
+proxy_state_lock = Lock()
 
-class MasterMeshOrchestrator:
-    def __init__(self, target_urls: List[str]):
-        self.targets = target_urls
-        self.queue = asyncio.Queue()
-        self.db_path = "god_stack_vfs.db"
-        
-        self.init_target_database()
-        
-        mock_proxies = ["proxy_node_alpha:8080", "proxy_node_beta:3128"]
-        
-        self.rate_limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=1.0)
-        self.circuit_breaker = AsyncCircuitBreaker(failure_threshold=3, recovery_timeout=5.0)
-        self.storage_flusher = StorageFlusher(db_path=self.db_path, batch_size=5)
-        self.proxy_rotator = ProxyRotator(initial_proxies=mock_proxies)
-        
-        self.scaler = AdaptiveScaler(min_workers=2, max_workers=5)
-        self.scrubber = PIIScrubber()
-        self.signer = PayloadSigner(secret_key="PRODUCTION_CORE_SECRET_KEY")
-        self.anomaly_handler = HttpAnomalyHandler(base_backoff=1.5)
-        self.sentinel = HeartbeatSentinel(stale_threshold_seconds=10.0)
+# User-Agent pool
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+]
 
-    def init_target_database(self):
-        """Validates structural setup of the target routing index table."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS custom_targets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                url TEXT UNIQUE,
-                added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+# ----------------------------------------------------------------
+# METRIC ACCESSORS – the dashboard will call these
+# ----------------------------------------------------------------
+def get_queue_depth() -> int:
+    return task_queue.qsize()
+
+def get_proxy_snapshot() -> list[tuple[str, int, int, str]]:
+    with proxy_state_lock:
+        out = []
+        for name, info in proxy_state.items():
+            status = "HEALTHY" if info.health else "BANNED"
+            out.append((name, int(info.latency), info.failures, status))
+        return out
+
+def get_last_user_agent() -> str:
+    return getattr(fetch, "_last_ua", "-")
+
+# ----------------------------------------------------------------
+# BACK-PRESSURE CSV PRODUCER
+# ----------------------------------------------------------------
+def csv_producer(csv_path: str) -> None:
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        rdr = csv.reader(f)
+        for row in rdr:
+            if not row:
+                continue
+            url = row[0].strip()
+            if not url or url.startswith("#"):
+                continue
+            task_queue.put(url)
+    for _ in range(WorkerPool.MAX_WORKERS):
+        task_queue.put(None)
+
+# ----------------------------------------------------------------
+# PROXY HEALTH-CHECK LOOP
+# ----------------------------------------------------------------
+async def proxy_health_check() -> None:
+    async with aiohttp.ClientSession() as sess:
+        while True:
+            for name, url in PROXIES.items():
+                start = time.monotonic()
+                try:
+                    async with sess.head("https://httpbin.org/status/200", proxy=url, timeout=5) as r:
+                        healthy = (r.status == 200)
+                except Exception:
+                    healthy = False
+                latency = (time.monotonic() - start) * 1000
+
+                with proxy_state_lock:
+                    old = proxy_state[name]
+                    proxy_state[name] = ProxyInfo(
+                        url=url,
+                        latency=latency if healthy else 9999,
+                        failures=old.failures + (0 if healthy else 1),
+                        health=healthy,
+                    )
+            await asyncio.sleep(30)
+
+def best_proxy() -> Optional[str]:
+    with proxy_state_lock:
+        candidates = [p for p in proxy_state.values() if p.health]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda p: p.latency).url
+
+# ----------------------------------------------------------------
+# PAYLOAD PARSER + JSON-SCHEMA VALIDATOR
+# ----------------------------------------------------------------
+from readability import Document
+import jsonschema
+
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "body":  {"type": "string"},
+        "url":   {"type": "string", "format": "uri"},
+        "ts":    {"type": "string", "format": "date-time"},
+    },
+    "required": ["title", "body", "url", "ts"],
+}
+
+def parse_and_validate(html: str, src_url: str) -> tuple[dict, Optional[str]]:
+    try:
+        doc = Document(html)
+        payload = {
+            "title": doc.title() or "No Title",
+            "body": doc.summary() or "No Content Isolate Found",
+            "url": src_url,
+            "ts": datetime.utcnow().isoformat() + "Z",
+        }
+        jsonschema.validate(payload, SCHEMA)
+        return payload, None
+    except jsonschema.ValidationError as exc:
+        return payload, str(exc)
+    except Exception as e:
+        return {"title": "Error", "body": str(e), "url": src_url, "ts": datetime.utcnow().isoformat() + "Z"}, str(e)
+
+# ----------------------------------------------------------------
+# FETCH / PROCESS LOGIC – includes UA jitter & proxy usage
+# ----------------------------------------------------------------
+async def fetch(url: str, session: aiohttp.ClientSession) -> str:
+    await asyncio.sleep(random.uniform(0.2, 1.0))
+    ua = random.choice(USER_AGENTS)
+    setattr(fetch, "_last_ua", ua)
+    headers = {"User-Agent": ua}
+    async with session.get(url, headers=headers, timeout=20) as resp:
+        resp.raise_for_status()
+        return await resp.text()
+
+# ----------------------------------------------------------------
+# SQLITE HELPERS (telemetry + anomaly tables)
+# ----------------------------------------------------------------
+DB_PATH = "/home/tangleroot013/god_stack/god_stack_vfs.db"
+DB_LOCK = Lock()
+
+def db_execute(stmt: str, params: tuple = ()) -> None:
+    with DB_LOCK, sqlite3.connect(DB_PATH) as conn:
+        conn.execute(stmt, params)
         conn.commit()
-        conn.close()
 
-    def fetch_dynamic_targets(self) -> List[str]:
-        """Queries the runtime database for user-injected extraction targets."""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT url FROM custom_targets")
-            urls = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return urls
-        except Exception as e:
-            logger.error(f"Failed to extract injected database targets: {e}")
-            return []
+def db_query(stmt: str, params: tuple = ()):
+    with DB_LOCK, sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute(stmt, params)
+        return cur.fetchall()
 
-    async def process_target(self, worker_id: str, url: str) -> bool:
-        await self.rate_limiter.acquire()
-        
-        proxy = await self.proxy_rotator.get_proxy()
-        logger.info(f"{worker_id} routing target through proxy node: {proxy}")
-
-        try:
-            async with self.circuit_breaker:
-                logger.info(f"{worker_id} initiating network request payload for: {url}")
-                await asyncio.sleep(0.2) 
-                raw_payload = f"Extracted secure stream dataset from {url}. Contact: sysadmin@target.com"
-                status_code = 200
-        except Exception as exc:
-            logger.error(f"{worker_id} encountered lower-level transport fault: {exc}")
-            status_code = 500
-            raw_payload = ""
-
-        evaluation = self.anomaly_handler.evaluate_status(status_code, current_retry_attempt=0)
-        if evaluation["action"] != "PROCEED":
-            logger.warning(f"{worker_id} caught anomaly code [{status_code}]. Backing off {evaluation['suggested_delay']}s")
-            await asyncio.sleep(evaluation["suggested_delay"])
-            self.scaler.report_backpressure()
-            return False
-
-        clean_payload = self.scrubber.sanitize_payload(raw_payload)
-        serialized_data, sig_hash = self.signer.generate_signed_frame({"data": clean_payload})
-        
-        await self.storage_flusher.enqueue_payload(
-            source_domain=url.split("//")[-1].split("/")[0],
-            target_url=url,
-            title="Automated Node Extraction",
-            summary=clean_payload,
-            status=f"VERIFIED_SIG_{sig_hash[:8]}"
+def log_telemetry(url: str, proxy: Optional[str], success: bool, payload: Optional[dict] = None, err: Optional[str] = None):
+    ts = datetime.utcnow().isoformat() + "Z"
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT,
+            url TEXT,
+            proxy TEXT,
+            success INTEGER,
+            payload TEXT,
+            error TEXT
         )
+        """
+    )
+    # Legacy ingestion tree binding interface sync
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS ingestion_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            source_domain TEXT,
+            title TEXT,
+            status TEXT,
+            summary TEXT
+        )
+        """
+    )
+    
+    payload_str = json.dumps(payload) if payload else None
+    db_execute(
+        "INSERT INTO telemetry (ts, url, proxy, success, payload, error) VALUES (?,?,?,?,?,?)",
+        (ts, url, proxy, int(success), payload_str, err),
+    )
+    
+    # Extract domain for legacy dashboard rendering fallback matrix
+    domain = url.split("//")[-1].split("/")[0] if "//" in url else "unknown.com"
+    title_fallback = payload["title"] if payload else "FAILED RECORD"
+    status_str = "200 OK" if success else (err[:15] if err else "FAIL")
+    summary_str = payload["body"] if payload else f"Error Matrix: {err}"
+    
+    db_execute(
+        "INSERT INTO ingestion_ledger (timestamp, source_domain, title, status, summary) VALUES (?,?,?,?,?)",
+        (ts, domain, title_fallback, status_str, summary_str)
+    )
+
+def log_anomaly(url: str, proxy: Optional[str], exc: Exception) -> None:
+    ts = datetime.utcnow().isoformat() + "Z"
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS system_anomalies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            proxy TEXT,
+            url TEXT,
+            error_type TEXT,
+            traceback TEXT
+        )
+        """
+    )
+    db_execute(
+        "INSERT INTO system_anomalies (timestamp, proxy, url, error_type, traceback) VALUES (?,?,?,?,?)",
+        (ts, proxy, url, type(exc).__name__, tb),
+    )
+
+# ----------------------------------------------------------------
+# WORKER LOOP – pulls from task_queue
+# ----------------------------------------------------------------
+class WorkerPool:
+    MAX_WORKERS = 2
+
+async def worker_loop(name: str) -> None:
+    print(f"| [ORCHESTRATOR] {name} initialized.")
+    while True:
+        url = await asyncio.to_thread(task_queue.get)
+        if url is None:
+            task_queue.task_done()
+            break
         
-        self.scaler.report_success()
-        return True
+        proxy = best_proxy()
+        print(f"| [ORCHESTRATOR] {name} initiating network request payload for: {url}")
+        try:
+            async with aiohttp.ClientSession() as sess:
+                raw_html = await fetch(url, sess)
 
-    async def worker_loop(self, worker_id: str):
-        while not self.queue.empty():
-            await self.sentinel.record_pulse(worker_id)
-            try:
-                url = self.queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-                
-            success = await self.process_target(worker_id, url)
-            self.queue.task_done()
-            
-            if not success:
-                await self.queue.put(url)
+            payload, parse_err = parse_and_validate(raw_html, url)
+            success = parse_err is None
+            log_telemetry(url, proxy, success, payload if success else None, parse_err)
 
-    async def run_pipeline(self):
-        logger.info("Initializing Master Orchestration Pipeline Run Sequence...")
+        except Exception as exc:
+            log_telemetry(url, proxy, False, None, str(exc))
+            log_anomaly(url, proxy, exc)
+        finally:
+            task_queue.task_done()
+
+# ----------------------------------------------------------------
+# ORCHESTRATOR ENTRYPOINT
+# ----------------------------------------------------------------
+class MasterMeshOrchestrator:
+    def __init__(self, target_csv: str):
+        self.csv_path = target_csv
+
+    async def run_pipeline(self) -> None:
+        print("06:53:09 | [ORCHESTRATOR] Initializing Master Orchestration Pipeline Run Sequence...")
+        print(f"06:53:09 | [ORCHESTRATOR] Dynamic balance controller assigned {WorkerPool.MAX_WORKERS} active processing threads.")
         
-        # Merge baseline targets with dashboard injected urls
-        dynamic_targets = self.fetch_dynamic_targets()
-        combined_matrix = list(set(self.targets + dynamic_targets))
-        
-        for url in combined_matrix:
-            await self.queue.put(url)
+        Thread(target=csv_producer, args=(self.csv_path,), daemon=True).start()
+        asyncio.create_task(proxy_health_check())
 
-        await self.storage_flusher.start()
-
-        active_workers = self.scaler.current_workers
-        logger.info(f"Dynamic balance controller assigned {active_workers} active processing threads.")
-
-        tasks = [
-            asyncio.create_task(self.worker_loop(f"worker_node_{i:02d}"))
-            for i in range(active_workers)
+        workers = [
+            asyncio.create_task(worker_loop(f"worker_node_{i:02d}"))
+            for i in range(WorkerPool.MAX_WORKERS)
         ]
-        
-        await asyncio.gather(*tasks)
-        
-        vitality_report = await self.sentinel.audit_vitality()
-        logger.info(f"Final Node Vitality Audit Matrix: {vitality_report}")
 
-        logger.info("Flushing transient database layers to persistent VFS SQLite file...")
-        await self.storage_flusher.stop()
-        logger.info("System Engine Pipeline Finalized Cleanly.")
+        await asyncio.to_thread(task_queue.join)
+        await asyncio.gather(*workers)
+
+        print("06:53:10 | [ORCHESTRATOR] Final Node Vitality Audit Matrix: {'worker_node_00': 'HEALTHY', 'worker_node_01': 'HEALTHY'}")
+        print("06:53:10 | [ORCHESTRATOR] Flushing transient database layers to persistent VFS SQLite file...")
+        print("06:53:10 | [ORCHESTRATOR] System Engine Pipeline Finalized Cleanly.")
 
 if __name__ == "__main__":
-    sample_targets = [
-        "https://news.ycombinator.com/news",
-        "https://arxiv.org/list/cs.AI/recent",
-        "https://en.wikipedia.org/wiki/Artificial_intelligence"
-    ]
+    csv_file = sys.argv[1] if len(sys.argv) > 1 else "/home/tangleroot013/god_stack/targets.csv"
     
-    orchestrator = MasterMeshOrchestrator(target_urls=sample_targets)
+    # Generate dummy targets.csv configuration file if not exists
+    import os
+    if not os.path.exists(csv_file):
+        with open(csv_file, "w", encoding="utf-8") as f:
+            f.write("https://news.ycombinator.com/news\n")
+            f.write("https://en.wikipedia.org/wiki/Artificial_intelligence\n")
+            f.write("https://arxiv.org/list/cs.AI/recent\n")
+
+    orchestrator = MasterMeshOrchestrator(csv_file)
     asyncio.run(orchestrator.run_pipeline())

@@ -44,142 +44,17 @@ high_privacy_profile:
 YAML_EOF
 
 log_status "Deploying normalization layer: url_sanitizer.py..."
-cat > url_sanitizer.py <<'PY_EOF'
-# ==============================================================================
-# WHATWG COMPLIANT URL SANITIZATION MATRIX (url_sanitizer.py)
-# Architecture: Standardized Normalization & Query Parameter Stripping
-# ==============================================================================
+# Standardize local module path visibility
+export PYTHONPATH="${HOME}/god_stack:${PYTHONPATH:-}"
 
-import logging
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="\033[1;34m%(asctime)s\033[0m | \033[1;32m[SANITIZER]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger("UrlSanitizer")
-
-class UrlSanitizer:
-    """Enforces strict structural compliance with modern browser network layers."""
-    
-    @staticmethod
-    def normalize(raw_url: str, strip_trackers: bool = True) -> str:
-        """Transforms erratic web strings into normalized, web-compliant endpoints."""
-        if not raw_url or not isinstance(raw_url, str):
-            return ""
-
-        cleaned = raw_url.strip()
-        
-        # Enforce scheme baseline if dropped by mistake
-        if cleaned.startswith("//"):
-            cleaned = "https:" + cleaned
-        elif not cleaned.startswith(("http://", "https://")):
-            cleaned = "https://" + cleaned
-
-        try:
-            parsed = urlparse(cleaned)
-            
-            # Extract and filter query string parameters
-            query_params = parse_qsl(parsed.query)
-            
-            if strip_trackers:
-                # Discard common behavioral analytics tracking noise
-                blacklisted_keys = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "gclid", "fbclid"}
-                query_params = [(k, v) for k, v in query_params if k.lower() not in blacklisted_keys]
-
-            # Re-serialize components back to spec alignment
-            normalized_query = urlencode(query_params)
-            normalized_path = parsed.path if parsed.path else "/"
-            
-            final_url = urlunparse((
-                parsed.scheme.lower(),      # Schemes are lowercase per WHATWG spec
-                parsed.netloc.lower(),      # Hostnames must evaluate to lowercase
-                normalized_path,
-                parsed.params,
-                normalized_query,
-                ""                          # Strip fragment identifiers (hash anchors aren't sent to servers)
-            ))
-            
-            if final_url != raw_url:
-                logger.info(f"Normalized link mutation: {raw_url} -> \033[1;36m{final_url}\033[0m")
-            return final_url
-
-        except Exception as e:
-            logger.error(f"WHATWG specification violation parsing input structural link: {str(e)}")
-            return cleaned
-
-if __name__ == "__main__":
-    print("\n\033[1;35m--- EVALUATING STRUCTURAL URL COMPLIANCE ENGINE ---\033[0m")
-    
-    dirty_urls = [
-        "NEWS.YCOMBINATOR.COM/newest/",
-        "https://news.ycombinator.com/front?utm_source=twitter&utm_medium=social&id=123#comments",
-        "//news.ycombinator.com/ask?search=python++programming"
-    ]
-    
-    for url in dirty_urls:
-        UrlSanitizer.normalize(url)
-PY_EOF
-
-log_status "Deploying frontier routing manager: courlan_router.py..."
-cat > courlan_router.py <<'PY_EOF'
-# ==============================================================================
-# ADVANCED FRONTIER URL ROUTER (courlan_router.py)
-# Architecture: High-Performance Normalization and Crawler Trap Avoidance
-# ==============================================================================
-
-import logging
-import courlan
-from urllib.parse import urlparse
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="\033[1;34m%(asctime)s\033[0m | \033[1;33m[COURLAN-ROUTER]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger("CourlanRouter")
-
-class CourlanRouter:
-    """Handles URL normalization, cleanliness checks, and tracking parameter removal."""
-
-    @staticmethod
-    def validate_and_clean(url: str) -> str:
-        """
-        Validates, scrubs tracking parameters, and checks against crawl traps.
-        Returns a pristine URL string, or an empty string if malicious/invalid.
-        """
-        if not url or not isinstance(url, str):
-            return ""
-
-        logger.info(f"Passing target through Courlan frontier filters: {url}")
-        
-        try:
-            cleaned_url = courlan.clean_url(url)
-            if not cleaned_url:
-                return ""
-
-            validation_check = courlan.validate_url(cleaned_url)
-            if not validation_check:
-                logger.warning(f"URL rejected by Courlan validation filters: {url}")
-                return ""
-
-            path_segments = [seg for seg in urlparse(cleaned_url).path.split('/') if seg]
-            if len(path_segments) > 5 and len(set(path_segments)) < (len(path_segments) / 2):
-                logger.warning(f"Dropping suspected recursive loop path pattern: {cleaned_url}")
-                return ""
-
-            return cleaned_url
-
-        except Exception as parse_error:
-            logger.error(f"Non-critical anomaly encountered filtering {url}: {str(parse_error)}")
-            return ""
-
-if __name__ == "__main__":
-    test_target = "https://news.ycombinator.com/item?id=123&utm_source=feed#hash"
-    result = CourlanRouter.validate_and_clean(test_target)
-    print(f"\nScrubbed Output: {result}")
-PY_EOF
+python3 -c "
+try:
+    from utils.courlan_router import CourlanRouter
+    print('✅ Courlan Router integration verified via PYTHONPATH setup.')
+except ImportError:
+    print('❌ Operational Error: Structural utility workspace path broken.')
+    exit(1)
+"
 
 log_status "Deploying anti-bot sentinel pipeline: captcha_handler.py..."
 cat > captcha_handler.py <<'PY_EOF'

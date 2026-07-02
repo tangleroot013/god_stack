@@ -1,2 +1,4 @@
 class UrlSanitizer:
-    def normalize(self, url: str) -> str: return url
+    @staticmethod
+    def normalize(url: str) -> str:
+        return url

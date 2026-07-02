@@ -1,65 +1,126 @@
+# ==============================================================================
+# BROWSER INTEL AUTOMATION CORE (god_scraper.py)
+# Architecture: Playwright Sandbox with Modular Action Chains & Error Resilience
+# ==============================================================================
 import asyncio
+import json
 import logging
-from typing import List, Optional
-
-# Attempt to load mock telemetry metrics layer
-try:
-    from metrics_exporter import NODES_PROCESSED, NODES_QUARANTINED, BUFFER_FILL
-except ImportError:
-    class DummyMetric:
-        def labels(self, *args, **kwargs): return self
-        def inc(self, amount=1): pass
-        def set(self, value): pass
-    NODES_PROCESSED = DummyMetric()
-    NODES_QUARANTINED = DummyMetric()
-    BUFFER_FILL = DummyMetric()
+import yaml
+from typing import List, Dict, Any, Optional
+from bs4 import BeautifulSoup
+from markdownify import markdownify as md
+from playwright.async_api import async_playwright, Page
 
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[1;36m%(asctime)s\033[0m | \033[1;32m[GOD-SCRAPER]\033[0m %(message)s",
-    datefmt="%H:%M:%S"
+    format="\033[1;36m%(asctime)s\033[0m | \033[1;35m[GOD-ENGINE]\033[0m %(message)s"
 )
 logger = logging.getLogger("GodScraper")
 
 class GodScraper:
-    def __init__(self, *args, **kwargs):
-        """Polymorphic constructor safely mapping legacy and modern initialization parameters."""
-        self.concurrency_limit = kwargs.get("concurrency_limit", kwargs.get("limit", 10))
-        self.profile_name = kwargs.get("profile_name", "default_profile")
-        
-        self.semaphore = asyncio.Semaphore(self.concurrency_limit)
-        self.active = False
-        logger.info(f"Context wrapper created. [Concurrency: {self.concurrency_limit}, Profile: {self.profile_name}]")
+    def __init__(self, profile_path: str = "stealth_profiles.yaml", profile_name: str = "default_profile"):
+        self.profile = self._load_profile(profile_path, profile_name)
+        self.playwright = None
+        self.browser = None
+        self.context = None
+
+    def _load_profile(self, path: str, name: str) -> Dict[str, Any]:
+        try:
+            with open(path, "r") as f:
+                config = yaml.safe_load(f)
+                return config.get(name, config.get("default_profile"))
+        except Exception:
+            logger.warning("Profile config missing. Falling back to internal engine safety defaults.")
+            return {"user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
     async def initialize(self, headless: bool = True, proxy_url: Optional[str] = None):
-        """Prepares worker matrices and underlying extraction dependencies."""
-        logger.info("Initializing unified scraping engine runner sequence...")
-        self.active = True
-        logger.info(f"Scraper sequence active. Concurrency ceiling set to: {self.concurrency_limit}")
+        self.playwright = await async_playwright().start()
+        
+        launch_args = []
+        proxy_config = None
+        
+        if proxy_url:
+            proxy_config = {"server": proxy_url}
+            
+        self.browser = await self.playwright.chromium.launch(
+            headless=headless,
+            args=launch_args,
+            proxy=proxy_config
+        )
+        
+        self.context = await self.browser.new_context(
+            user_agent=self.profile.get("user_agent"),
+            viewport=self.profile.get("viewport"),
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"}
+        )
 
-    async def process_target(self, url: str):
-        """Processes an individual target node (called dynamically by finalize_god_stack.sh)."""
-        async with self.semaphore:
-            if not self.active:
-                return
-            logger.info(f"Ingesting targeted routing node frame: {url}")
-            NODES_PROCESSED.inc(1)
-            await asyncio.sleep(0.05) # Simulate unblocking performance yield
+    async def scrape(self, url: str, workflow: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        if not self.context:
+            return {"status": "error", "message": "Engine context uninitialized."}
 
-    async def run(self):
-        """Standard batch mock runpath sequence expected by run_integration_tests.py"""
-        logger.info("Starting integration batch execution pipeline...")
-        NODES_PROCESSED.inc(11)
-        NODES_QUARANTINED.labels(reason="Invalid layout").inc(1)
-        NODES_QUARANTINED.labels(reason="403 Forbidden").inc(1)
-        BUFFER_FILL.set(0.15)
-        print("====================================================")
-        print("RUN SUCCESSFUL: 11 Target nodes processed safely.")
-        print("====================================================")
+        page = await self.context.new_page()
+        try:
+            # Main navigation threshold
+            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            
+            # Action array pipeline tracking
+            if workflow:
+                for step in workflow:
+                    action = step.get("action")
+                    target = step.get("target")
+                    val = step.get("value")
+                    
+                    logger.info(f"Executing workflow step: [Action: {action}] -> [Target: {target or 'N/A'}]")
+                    
+                    if action == "click" and target:
+                        await page.click(target, timeout=5000)
+                    elif action == "type" and target and val:
+                        await page.type(target, val, timeout=5000)
+                    elif action == "wait_for" and target:
+                        await page.wait_for_selector(target, timeout=5000)
+                    elif action == "scroll":
+                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+                    elif action == "wait_for_timeout":
+                        await page.wait_for_timeout(int(val or 1000))
+
+            raw_html = await page.content()
+            title = await page.title()
+            markdown_content = md(raw_html)
+            
+            return {
+                "status": "success",
+                "title": title,
+                "html": raw_html,
+                "markdown": markdown_content
+            }
+        except Exception as e:
+            logger.error(f"Scraping execution crashed: {str(e)}")
+            return {"status": "error", "message": str(e)}
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def shutdown(self):
-        logger.info("Executing graceful scraper teardown sequence...")
-        self.active = False
+        """Resilient process closure designed to swallow OS driver interrupts silently."""
+        try:
+            if self.browser: 
+                await self.browser.close()
+        except Exception:
+            pass
+        finally:
+            try:
+                if self.playwright: 
+                    await self.playwright.stop()
+            except Exception:
+                pass
 
-# Global production singleton scraper deployment node
-GodScraperNode = GodScraper()
+if __name__ == "__main__":
+    async def run_test():
+        scraper = GodScraper()
+        await scraper.initialize(headless=True)
+        res = await scraper.scrape("https://news.ycombinator.com")
+        print(f"Scraping complete status: {res.get('status')}")
+        await scraper.shutdown()
+    asyncio.run(run_test())

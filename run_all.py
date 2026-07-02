@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from utils.courlan_router import CourlanRouter
 # ==============================================================================
 # G.O.D. STACK V2.0.0 HIGH-AVAILABILITY PRODUCTION CORE: OPTIONS 4 & 6 INTEGRATION
 # ==============================================================================
@@ -119,20 +120,7 @@ class UrlSanitizer:
             return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path if parsed.path else "/", parsed.params, urlencode(query_params), ""))
         except Exception: return cleaned
 
-class CourlanRouter:
-    @staticmethod
-    def validate_and_clean(url: str) -> str:
-        pristine_base = UrlSanitizer.normalize(url)
-        try:
-            cleaned_url = courlan.clean_url(pristine_base)
-            if not cleaned_url or not courlan.validate_url(cleaned_url):
-                return ""
-            return cleaned_url
-        except Exception: return ""
 
-# ==============================================================================
-# MODULE 2: ENCRYPTED PERSISTENCE & DATA VALIDATION ENGINE (Option 4)
-# ==============================================================================
 class DataPersistenceMatrix:
     def __init__(self, db_path: str = "storage.sqlite"):
         self.db_path = db_path
