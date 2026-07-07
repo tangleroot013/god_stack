@@ -11,6 +11,7 @@ datasets/
 vaults/*
 !vaults/index.html
 .env
+.env.local
 
 # Local State & VFS Protection Matrix
 god_stack_vfs.db
@@ -19,3 +20,25 @@ god_stack_vfs.db-wal
 config/backups/*.bak
 outputs/
 logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Test cache
+.pytest_cache/
+.tox/
