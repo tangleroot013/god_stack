@@ -1,0 +1,1 @@
+{"global_action": "SHED_LOAD", "calculated_drain_rates": {"Worker-00": 35.0}, "timestamp_updated": 1782235756.9451911, "_debug_raw_metrics": {"Worker-00": {"priority_lane_depth": 10, "standard_lane_depth": 1350, "cpu_util": 45.0, "queue_depth": 1360}}}

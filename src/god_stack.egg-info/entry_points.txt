@@ -1,0 +1,2 @@
+[console_scripts]
+godctl = god_stack.cli.godctl:main
