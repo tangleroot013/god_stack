@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 # Ensure the app code can be discovered by Python's path loader
 sys.path.append(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-from ui.god_gui import GodStackGUI
+from god_stack.ui.god_gui import GodStackGUI
 
 class TestGodStackGUI(unittest.TestCase):
     def setUp(self):

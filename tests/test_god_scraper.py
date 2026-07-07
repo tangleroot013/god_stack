@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from god_scraper import GodScraper
+from god_stack.data.god_scraper import GodScraper
 
 @pytest.mark.asyncio
 async def test_scraper_fallback_profile():
     """Confirms that GodScraper instantiates and uses internal stealth infrastructure smoothly."""
     scraper = GodScraper()
-    assert scraper.identity_handler is not None
+    assert scraper.profile is not None
 
 @pytest.mark.asyncio
 async def test_mocked_scrape_sequence():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import unittest
-from url_sanitizer import UrlSanitizer
+from god_stack.network.url_sanitizer import UrlSanitizer
 
 class TestUrlSanitizer(unittest.TestCase):
     def test_case_insensitive_schemes(self):
