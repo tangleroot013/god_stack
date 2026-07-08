@@ -2,63 +2,105 @@
 
 A highly resilient, distributed engine framework designed for high-frequency daemon clustering, stealth profile routing, telemetry logging, and live metric observability.
 
-## 🟩 Project Status
-* **Test Matrix Suite:** PASSING (`5/5 tests clean`)
-* **Target Runtime:** Python 3.11+ on Debian Bookworm (`penguin` ChromeOS Container verified)
-* **Codebase State:** Stable baseline; pathing anomalies and line-continuation syntax errors fully patched.
+## Project status
 
----
+- **Test Matrix Suite:** PASSING (`5/5 tests clean`)
+- **Target runtime:** Python 3.11+ on Debian Bookworm ("penguin" ChromeOS container verified)
+- **Codebase state:** Stable baseline; pathing anomalies and line-continuation syntax errors fully patched.
 
-## 🛠️ System Pre-requisites & Dependencies
+## What this repo provides
 
-Modern Linux platforms implement **PEP 668**, preventing unmanaged system-wide `pip` changes from destabilizing platform components. To integrate with the telemetry engines securely, install required networking layers via `apt` or use an isolated virtual environment.
+- Cluster orchestration (orchestrator / coordinator-style runtime)
+- A GUI/testing harness container
+- Prometheus metrics (gateway)
+- A Python package entry point (`godctl`)
 
-### 1. Global Installation (Recommended for Container/VM Environments)
+## Requirements
+
+### OS / Python
+- Linux recommended (the included runbook assumes Debian-like tooling)
+- Python **3.11+**
+
+### PEP 668 note (pip on modern distros)
+Modern Linux distributions may enforce **PEP 668**, preventing uncontrolled `pip` installs into system Python. Use one of:
+
+- an isolated virtual environment
+- or a container / VM environment
+
+## Quick start
+
+### Option A: Docker Compose (recommended)
+
+Bring up the stack:
+
 ```bash
-sudo apt update
-sudo apt install python3-prometheus-client python3-websockets
-2. Isolated Virtual Environment (Alternative)Bashpython3 -m venv .venv
-source .venv/bin/activate
-pip install prometheus_client websockets
-📂 Architecture & Directory TopologyPlaintextgod_stack/
-├── api/                      # Edge command gateways and control endpoints
-├── daemons/                  # Cluster coordinator sub-processes
-├── daemon_core.py            # Main master loop & multi-node routing supervisor
-├── engines/                  # Discrete compute, state machines, and task execution layers
-├── god_engine.py             # Global execution driver & orchestrator
-├── workers/                  # Task consumers and local node workers
-├── worker_node.py            # Standalone compute engine worker agent
-├── parsers/                  # Ingestion parsers, scrubbers, and validation engines
-├── god_scraper.py            # Data harvester utilizing rotating stealth routing profiles
-├── config/                   # Global configuration profiles and environments
-├── stealth_profiles.yaml     # Identity masking signatures & network fingerprints
-├── utils/                    # Common infrastructure helpers
-│   └── prometheus_exporter.py # Prometheus telemetry agent (Counters, Gauges, Summaries)
-├── tests/                    # Behavioral test targets and unit assertion matrix
-├── secrets/ & vaults/        # Encrypted credential containers & credential isolation keys
-└── secure/                   # Secure storage runtime directory
-🧪 Verification & Continuous IntegrationThe codebase uses an inline hotfix controller to sanitize scripts and standardize configurations during unit discovery routines.To execute verification pipelines against the current test suite baseline, run either variant:Bash# Automated patching harness:
-./patch_and_run.sh
-
-# Direct python regression testing:
-python3 -m unittest discover -s tests -p "test_*.py"
-🚀 Deployment & Operational RunbookThe suite is populated with rapid orchestration tools to handle setup, runtime analysis, and deployment handoffs:1. Framework IgnitionBash# Bring up the entire cluster daemon architecture
-./run_stack.sh
-
-# Deploy using Docker Compose container isolation layers
 docker-compose up -d
-2. Live Monitoring & Matrix AnalyticsBash# Fire the sweeping configuration performance profiling pipeline
-./run_sweeps.sh
+```
 
-# Audit live cluster health, node allocations, and socket telemetry
-./prod_status.sh
-python3 check_health.py
-3. Production Deployment OverridesBash# Stage production orchestration layers and clean logs
-./prod_orchestrator.sh
+### What runs (per `docker-compose.yml`)
+- **orchestrator**: core stack coordinator
+- **ui-harness**: unified GUI operations & verification harness (uses `xvfb` + `tk`)
+- **prometheus**: Prometheus server with configuration from `./prometheus.yml`
 
-# Lock down, sign credentials, and export production assets
-./release_prod.sh
-./finalize_deployment.sh
-⚠️ Known Operational Gotchas & Fixes1. Line-Continuation Alignment / Indentation FaultsIf script patching actions strip stray escape strings and drop mock definitions flush against the wall in tests/test_daemon_cluster.py causing an IndentationError, execute this target correction to force standard 4-space function body spacing:Bashsed -i '11s/^/    /' tests/test_daemon_cluster.py
-2. Live Logs & State File PersistenceState DB: Database updates and engine sessions reside inside cache.db.Telemetry Logs: Standard operational dumps are isolated cleanly within /logs and /outputs.⚙️ Advanced Configuration Defaults & Tuning1. Engine Core & Scaling Parameters (god_engine.py)MAX_CONCURRENT_WORKERS: Defaults to 2 for local development. Scale up to 8 or 16 for production VM environments.Network Interceptor Layer: sitecustomize.py runs implicitly to protect the package layout boundaries.2. Live Telemetry & Prometheus Metrics MatrixExposed at http://localhost:8000/metrics via utils/prometheus_exporter.py.Metric NameTypeComponentDescriptionJOBS_PROCESSEDCounterworker_node.pyTotal successfully processed payloads.ERROR_RATIOGaugeutils/prometheus_exporter.pyLive error rate; alerts trigger if ratio > 0.15 (15%).ACTIVE_DAEMONSGaugedaemon_core.pyActive sub-node cluster tracking units.3. Database Maintenance & Cleanup (cache.db)SQLVACUUM;
+### Prometheus
+Once `prometheus` is up, open:
+
+- http://localhost:9090
+
+## Metrics / telemetry configuration
+
+Metrics port is determined in `src/god_stack/config.py`.
+
+- Default start point: `8015`
+- If `GOD_METRICS_PORT` is set to a digit, that value is used.
+- Otherwise, the code probes a small range of ports to find a free one.
+
+Practical guidance:
+
+- If you need deterministic port binding for local tooling, set `GOD_METRICS_PORT`.
+- If you run multiple stacks on one host, avoid hard conflicts by allowing auto-probing.
+
+## Verification / tests
+
+Run the project’s test suite (unittest-based discovery):
+
+```bash
+python3 -m unittest discover -s tests -p "test_*.py"
+```
+
+## Common operational notes
+
+### SQLite / state cleanup
+If you use the local state DB (`cache.db`), the repo’s runbook suggests running:
+
+```sql
+SQLVACUUM;
 DELETE FROM task_cache WHERE timestamp < datetime("now", "-7 days");
+```
+
+(Only do this if `cache.db` is the DB you’re currently using and you understand the impact.)
+
+### “Gotchas” that were previously noted in the old README
+- **Markdown formatting issues:** the previous README had broken line continuations and fused command lines. This version fixes those presentation problems.
+- **Script/runbook drift:** earlier README sections referenced orchestration scripts. This rewrite now focuses on verified content from `docker-compose.yml` and `config.py`; see `src/god_stack/scripts/` for available runbook entrypoints.
+
+
+## Areas to improve (tracked, not blockers)
+
+- **Script/runbook accuracy:** the old README referenced scripts (e.g., `run_stack.sh`, `patch_and_run.sh`, `run_sweeps.sh`, `prod_status.sh`, etc.) that may not exist in this checkout. This README now limits itself to content verified against `docker-compose.yml` and `config.py`.
+- **Repository architecture section:** directory topology is not fully verified against current folder contents; future updates should reflect the actual `src/god_stack/*` layout rather than an assumed top-level layout.
+- **Status numbers:** the “5/5 tests clean” claim should be updated by CI output or a pinned test command/result in the README.
+
+## Future project pathways
+
+- **Make the operational runbook self-validating**: add a `scripts/` or `bin/` entrypoint set (and reference only those) so README commands never drift.
+- **Document env vars systematically**: extract documented variables from code (like `GOD_METRICS_PORT`) into a generated `docs/env.md`.
+- **Add a “health checks” chapter**: point to a concrete health endpoint/command that matches what’s implemented.
+- **Expand observability docs**: include example Grafana dashboards usage and metric names once finalized.
+
+## Appendix: entry points
+
+The Python package exposes a `godctl` command (configured in `pyproject.toml`):
+
+- `godctl` → `god_stack.cli.godctl:main`
+

@@ -1,0 +1,9 @@
+- [x] Review current README.md contents
+- [x] Rewrite README.md with valid Markdown formatting and corrected command/script references
+- [x] Add configuration notes (e.g., GOD_METRICS_PORT) aligned with config.py
+- [x] Add docker-compose quickstart + ports/URLs based on docker-compose.yml
+- [x] Add verification/testing section based on existing tests layout
+- [x] Add "Areas to improve" and "Future pathways" sections
+- [x] Run a quick grep/list sanity check for referenced scripts (if available)
+- [x] Final sanity check by re-reading README.md
+
