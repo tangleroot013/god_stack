@@ -5,7 +5,7 @@ from prometheus_client import start_http_server, REGISTRY
 
 # Enforce local workspace prioritization
 sys.path.insert(0, '.')
-import prometheus_exporter
+import god_stack.core.prometheus_exporter as prometheus_exporter
 
 def main():
     port = 8000

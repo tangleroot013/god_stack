@@ -2,7 +2,7 @@
 import random
 import time
 from pathlib import Path
-from database_layer import SQLitePool, ResearchLedger
+from god_stack.data.database_layer import SQLitePool, ResearchLedger
 
 class ResearchPipelineV2:
     def __init__(self, target_file="bulk_targets.txt"):

@@ -6,7 +6,7 @@ import asyncio
 import signal
 import sys
 import logging
-from matrix_orchestrator import CoreMatrixOrchestrator
+from god_stack.core.matrix_orchestrator import CoreMatrixOrchestrator
 
 logging.basicConfig(
     level=logging.INFO,

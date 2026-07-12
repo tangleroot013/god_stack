@@ -2,7 +2,7 @@ import http.server
 import threading
 import logging
 import time
-from metrics_exporter import SYSTEM_METRICS, start_telemetry_server
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS, start_telemetry_server
 
 logging.basicConfig(
     level=logging.INFO,

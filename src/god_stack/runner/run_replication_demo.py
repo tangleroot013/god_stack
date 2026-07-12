@@ -1,6 +1,6 @@
 import os
 import time
-from replicate_vfs import GodReplicationEngine
+from god_stack.data.replicate_vfs import GodReplicationEngine
 
 def main():
     print("\n\033[1;32m--- G.O.D. STACK HIGH-AVAILABILITY FAILOVER MATRIX TEST ---\033[0m")

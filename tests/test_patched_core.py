@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from god_engine import GodEngineNode
+from god_stack.engines.god_engine import GodEngineNode
 
 class TestPatchedCoreEngine(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

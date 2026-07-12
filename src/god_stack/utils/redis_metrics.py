@@ -1,7 +1,7 @@
 import redis
 import logging
 import asyncio
-from utils.monitor_relay import MonitorRelay
+from god_stack.utils.monitor_relay import MonitorRelay
 
 logging.basicConfig(level=logging.INFO, format="\033[1;36m%(asctime)s\033[0m | \033[1;36m[REDIS-METRICS]\033[0m %(message)s")
 logger = logging.getLogger("RedisMetrics")

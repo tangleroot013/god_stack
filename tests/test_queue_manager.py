@@ -1,7 +1,7 @@
 import pytest
 import json
 from unittest.mock import MagicMock, patch
-from utils.queue_manager import RedisQueueManager
+from god_stack.utils.queue_manager import RedisQueueManager
 
 @patch("redis.Redis")
 def test_broker_deduplication_and_handling(mock_redis_class):

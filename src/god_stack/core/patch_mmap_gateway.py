@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from url_sanitizer import UrlSanitizer
+from god_stack.network.url_sanitizer import UrlSanitizer
 
 class MMapBuffer:
     def __init__(self):

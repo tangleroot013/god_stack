@@ -1,8 +1,8 @@
 import json
 import time
 import threading
-from data_storage_sync import GodStorageManager
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.data.data_storage_sync import GodStorageManager
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 def generate_mock_worker_payload(item_id: str, title: str, score: float) -> dict:
     """Generates a mock data packet formatted identically to worker node payloads."""

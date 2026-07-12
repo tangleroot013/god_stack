@@ -1,5 +1,5 @@
 import asyncio
-from utils.logger import setup_production_logging
+from god_stack.utils.logger import setup_production_logging
 
 log = setup_production_logging()
 

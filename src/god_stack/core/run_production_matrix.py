@@ -15,11 +15,11 @@ from typing import List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from utils.url_sanitizer import UrlSanitizer
-    from utils.courlan_router import CourlanRouter
-    from utils.scavenger import Scavenger
-    from daemons.captcha_handler import CaptchaHandler
-    from engines.god_engine import GodEngine
+    from god_stack.utils.url_sanitizer import UrlSanitizer
+    from god_stack.utils.courlan_router import CourlanRouter
+    from god_stack.utils.scavenger import Scavenger
+    from god_stack.daemons.captcha_handler import CaptchaHandler
+    from god_stack.engines.god_engine import GodEngine
 except ImportError as e:
     logging.error(f"Ecosystem cross-import failed: {str(e)}")
     sys.exit(1)

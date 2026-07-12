@@ -5,10 +5,10 @@ import sys
 import aiohttp
 from typing import List, Optional
 
-from god_scraper import GodScraper
-from god_engine import GodEngineNode
-from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
-from frontier_manager import Frontier
+from god_stack.data.god_scraper import GodScraper
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.telemetry.metrics_exporter import start_telemetry_server, SYSTEM_METRICS
+from god_stack.core.frontier_manager import Frontier
 
 logging.basicConfig(
     level=logging.INFO,

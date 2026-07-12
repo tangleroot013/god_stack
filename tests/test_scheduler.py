@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from utils.scheduler import AsyncScheduler
+from god_stack.utils.scheduler import AsyncScheduler
 
 @pytest.mark.asyncio
 async def test_scheduler_interval_execution():

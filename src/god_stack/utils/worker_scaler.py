@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.shared_memory import (
+from god_stack.utils.shared_memory import (
     SHM_PATH, SHM_SIZE, SLOT_SIZE, MAX_WORKERS,
     init_shm_space, iter_workers, register_worker
 )

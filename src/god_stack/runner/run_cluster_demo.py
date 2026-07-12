@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from api.mock_coordinator import start_coordinator_server
-from worker_node import GodWorkerNode
+from god_stack.api.mock_coordinator import start_coordinator_server
+from god_stack.core.worker_node import GodWorkerNode
 
 logging.basicConfig(
     level=logging.INFO,

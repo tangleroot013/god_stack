@@ -1,8 +1,8 @@
 import asyncio
 import aiohttp
 import logging
-from god_scraper import GodScraper
-from utils.queue_manager import RedisQueueManager
+from god_stack.data.god_scraper import GodScraper
+from god_stack.utils.queue_manager import RedisQueueManager
 
 class RedisWorker:
     """Executes atomic missions pulling from a real-world Redis container."""

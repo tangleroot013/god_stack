@@ -4,7 +4,7 @@ import json
 import urllib.request
 import time
 import threading
-from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
+from god_stack.telemetry.metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 
 def run_audit():
     print("\n\033[1;34m>>> INITIALIZING TELEMETRY EXPOSITION AUDIT RUNNER <<<\033[0m")

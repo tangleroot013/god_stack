@@ -32,9 +32,9 @@ socket.socket.bind = resilient_socket_bind
 
 # Proceed with stack module imports safely
 import metrics_exporter
-from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
-from orchestrator import MasterMeshOrchestrator, parse_and_validate
-from engines.god_engine import GodEngine
+from god_stack.telemetry.metrics_exporter import start_telemetry_server, SYSTEM_METRICS
+from god_stack.core.orchestrator import MasterMeshOrchestrator, parse_and_validate
+from god_stack.engines.god_engine import GodEngine
 
 # Hotpatch metrics_exporter function defaults to fully prevent port 8000 utilization
 original_start_telemetry = metrics_exporter.start_telemetry_server

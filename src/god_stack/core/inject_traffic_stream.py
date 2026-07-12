@@ -1,6 +1,6 @@
 import time
 import logging
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 logging.basicConfig(
     level=logging.INFO,

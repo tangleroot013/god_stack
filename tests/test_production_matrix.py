@@ -1,7 +1,7 @@
 import asyncio
 import unittest
-from frontier_manager import Frontier
-from god_scraper import GodScraperNode
+from god_stack.core.frontier_manager import Frontier
+from god_stack.data.god_scraper import GodScraper as GodScraperNode
 
 class TestProductionMatrixScraper(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

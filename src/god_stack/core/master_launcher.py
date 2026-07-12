@@ -3,13 +3,13 @@ import logging
 import time
 
 # Incorporate previous functional design parameters
-from gui_lifecycle import LifecycleBridge
-from gui_masker import PrivacyPreservingLogBox
-from resilience_dashboard import ResilienceDashboardWidget
-from input_panel import SecureInputPanel
-from gui_event_dispatcher import TelemetryEventDispatcher
-from gui_theme import MonochromaticThemeEngine
-from gui_integrity import FileIntegrityVisualSentinel
+from god_stack.gui.gui_lifecycle import LifecycleBridge
+from god_stack.gui.gui_masker import PrivacyPreservingLogBox
+from god_stack.gui.resilience_dashboard import ResilienceDashboardWidget
+from god_stack.gui.input_panel import SecureInputPanel
+from god_stack.gui.gui_event_dispatcher import TelemetryEventDispatcher
+from god_stack.gui.gui_theme import MonochromaticThemeEngine
+from god_stack.gui.gui_integrity import FileIntegrityVisualSentinel
 
 logging.basicConfig(
     level=logging.INFO,

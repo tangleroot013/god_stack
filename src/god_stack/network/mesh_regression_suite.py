@@ -3,8 +3,8 @@ import unittest
 import asyncio
 import time
 import sqlite3
-from metrics_exporter import increment_metric, sync_from_database, SYSTEM_METRICS, init_persistent_db
-from master_mesh_runtime import ProductionStreamScraper
+from god_stack.telemetry.metrics_exporter import increment_metric, sync_from_database, SYSTEM_METRICS, init_persistent_db
+from god_stack.core.master_mesh_runtime import ProductionStreamScraper
 
 class TestGodStackMeshIntegrity(unittest.TestCase):
     def setUp(self):

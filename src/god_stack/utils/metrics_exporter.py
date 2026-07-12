@@ -1,6 +1,6 @@
 import time
 from prometheus_client import start_http_server, Counter, Gauge, Summary
-from utils.log_rotator import get_logger
+from god_stack.utils.log_rotator import get_logger
 
 log = get_logger("MetricsExporter")
 

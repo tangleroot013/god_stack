@@ -12,9 +12,9 @@ async def run_sanity_check():
 
     print("[1/3] Testing package imports...")
     try:
-        from utils.logger import setup_production_logging
-        from prometheus_exporter import WORKER_EXECS
-        from workers.example_worker import run_example_payload
+        from god_stack.utils.logger import setup_production_logging
+        from god_stack.core.prometheus_exporter import WORKER_EXECS
+        from god_stack.workers.example_worker import run_example_payload
         print("✅ All core modules, utilities, and exporters loaded smoothly.")
     except ImportError as e:
         print(f"❌ Critical Import Error: {e}")

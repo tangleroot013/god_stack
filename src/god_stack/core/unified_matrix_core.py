@@ -6,9 +6,9 @@ import aiohttp
 from typing import List, Optional
 
 # Native infrastructure hook re-exports
-from god_scraper import GodScraper
-from god_engine import GodEngineNode
-from metrics_exporter import start_telemetry_server, SYSTEM_METRICS
+from god_stack.data.god_scraper import GodScraper
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.telemetry.metrics_exporter import start_telemetry_server, SYSTEM_METRICS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,7 +106,7 @@ async def main():
     await scraper.initialize()
     
     # Feed simulation urls into the frontier management engine
-    from frontier_manager import Frontier
+    from god_stack.core.frontier_manager import Frontier
     for url in ["https://example.com/alpha", "https://example.com/beta", "https://example.com/gamma"\]:
         Frontier.add_url(url)
         

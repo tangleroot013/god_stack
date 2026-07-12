@@ -1,8 +1,8 @@
 import time
 import json
 import http.client
-from utils.scraper_engine import GodScraperEngine
-from utils.dom_parser import GodDOMParser
+from god_stack.utils.scraper_engine import GodScraperEngine
+from god_stack.utils.dom_parser import GodDOMParser
 
 class GodWorkerNode:
     def __init__(self, gateway_host="localhost", gateway_port=8090):

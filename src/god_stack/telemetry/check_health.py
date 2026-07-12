@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from daemon_core import DaemonCore
+from god_stack.core.daemon_core import DaemonCore
 
 # Configure clean terminal telemetry output
 logging.basicConfig(

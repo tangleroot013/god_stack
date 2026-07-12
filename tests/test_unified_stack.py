@@ -1,8 +1,8 @@
 import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock
-from run_unified_stack import UnifiedExecutionMatrix
-from frontier_manager import Frontier
+from god_stack.runner.run_unified_stack import UnifiedExecutionMatrix
+from god_stack.core.frontier_manager import Frontier
 
 class TestUnifiedStackRefactor(unittest.IsolatedAsyncioTestCase):
     async def test_lifecycle_execution_sequence(self):

@@ -1,8 +1,8 @@
 import asyncio
 import json
 import logging
-from core.extension_loader import ExtensionLoader
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.core.extension_loader import ExtensionLoader
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 logging.basicConfig(
     level=logging.INFO,

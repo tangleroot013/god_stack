@@ -7,8 +7,8 @@ import asyncio
 import logging
 import random
 import sys
-from utils.url_sanitizer import UrlSanitizer
-from utils.captcha_handler import CaptchaHandler
+from god_stack.utils.url_sanitizer import UrlSanitizer
+from god_stack.utils.captcha_handler import CaptchaHandler
 
 # Setup unified execution log stream
 logging.basicConfig(

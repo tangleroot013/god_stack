@@ -3,8 +3,8 @@
 # G.O.D. STACK | FULL PIPELINE EXECUTOR WITH PARSING HOOKS
 # ==============================================================================
 import logging
-from god_scraper import GodScraper
-from parsers.content_extractor import ContentExtractor
+from god_stack.data.god_scraper import GodScraper
+from god_stack.parsers.content_extractor import ContentExtractor
 
 logging.basicConfig(
     level=logging.INFO,

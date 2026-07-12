@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from utils.metrics_exporter import MetricsExporter, JOBS_PROCESSED
+from god_stack.utils.metrics_exporter import MetricsExporter, JOBS_PROCESSED
 
 def test_metrics_counter_incrementation():
     exporter = MetricsExporter(port=9999)

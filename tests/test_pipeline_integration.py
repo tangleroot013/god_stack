@@ -2,7 +2,7 @@
 import unittest
 import asyncio
 import aiohttp
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 class TestGodStackUnification(unittest.TestCase):
     def test_telemetry_atomic_counters(self):
@@ -13,7 +13,7 @@ class TestGodStackUnification(unittest.TestCase):
 
     def test_stream_loop_structural_integrity(self):
         """Ensures modern task distribution paradigms don't leave lingering un-awaited code."""
-        from unified_matrix_core import StreamlinedGodScraper
+        from god_stack.core.unified_matrix_core import StreamlinedGodScraper
         scraper = StreamlinedGodScraper(concurrency_limit=2)
         self.assertFalse(scraper.active)
         self.assertEqual(len(scraper.active_tasks), 0)

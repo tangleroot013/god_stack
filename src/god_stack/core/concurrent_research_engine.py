@@ -2,11 +2,11 @@
 import random, time, threading, os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from database_layer import SQLitePool, ResearchLedger
+from god_stack.data.database_layer import SQLitePool, ResearchLedger
 
 # Import metrics store (optional; can run without it)
 try:
-    from metrics_server import metrics as metrics_store
+    from god_stack.telemetry.metrics_server import metrics as metrics_store
     METRICS_ENABLED = True
 except ImportError:
     METRICS_ENABLED = False

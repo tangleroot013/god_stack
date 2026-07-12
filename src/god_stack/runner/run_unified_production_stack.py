@@ -3,10 +3,10 @@ import logging
 import sys
 
 # Import components engineered across previous operational iterations
-from central_supervisor import CentralOrchestrationSupervisor
-from affinity_router import InterfaceAffinityRouter
-from latency_monitor import SlidewindowLatencyTracker
-from payload_obfuscator import SecurePayloadObfuscator
+from god_stack.core.central_supervisor import CentralOrchestrationSupervisor
+from god_stack.network.affinity_router import InterfaceAffinityRouter
+from god_stack.telemetry.latency_monitor import SlidewindowLatencyTracker
+from god_stack.data.payload_obfuscator import SecurePayloadObfuscator
 
 logging.basicConfig(
     level=logging.INFO,

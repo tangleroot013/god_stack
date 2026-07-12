@@ -1,7 +1,7 @@
 import pytest
 import os
 import shutil
-from utils.search_ledger import SearchLedger
+from god_stack.utils.search_ledger import SearchLedger
 
 TMP_VAULT = "/tmp/god_vault"
 

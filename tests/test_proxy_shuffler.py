@@ -1,7 +1,7 @@
 import pytest
 import json
 from pathlib import Path
-from utils.proxy_shuffler import ProxyRotationPool, FingerprintShuffler
+from god_stack.utils.proxy_shuffler import ProxyRotationPool, FingerprintShuffler
 
 TMP_PROXY_CONF = Path("/tmp/test_proxies.json")
 

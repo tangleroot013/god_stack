@@ -1,7 +1,7 @@
 from aiohttp import web
 from pathlib import Path
-from api.obsidian_graph_decorator import GraphDecorator
-from utils.log_rotator import get_logger
+from god_stack.api.obsidian_graph_decorator import GraphDecorator
+from god_stack.utils.log_rotator import get_logger
 
 log = get_logger("ObsidianWebhook")
 

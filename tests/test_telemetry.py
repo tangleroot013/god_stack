@@ -1,8 +1,8 @@
 import pytest
 import asyncio
 import websockets
-from utils.monitor_relay import MonitorRelay
-from daemon_core import DaemonCore
+from god_stack.utils.monitor_relay import MonitorRelay
+from god_stack.core.daemon_core import DaemonCore
 
 @pytest.mark.asyncio
 async def test_websocket_broadcast_lifecycle():

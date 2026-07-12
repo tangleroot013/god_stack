@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from utils.stealth_manager import StealthManager
+from god_stack.utils.stealth_manager import StealthManager
 
 def test_stealth_manager_injection_flow():
     mock_page = MagicMock()

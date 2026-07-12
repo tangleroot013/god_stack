@@ -1,7 +1,7 @@
 import asyncio
-from frontier_manager import Frontier
-from god_scraper import GodScraper
-from metrics_exporter import start_metrics_server
+from god_stack.core.frontier_manager import Frontier
+from god_stack.data.god_scraper import GodScraper
+from god_stack.telemetry.metrics_exporter import start_metrics_server
 from prometheus_client import generate_latest, REGISTRY
 
 async def main():

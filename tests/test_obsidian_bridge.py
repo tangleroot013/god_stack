@@ -1,7 +1,7 @@
 import os
 import shutil
 import pytest
-from utils.obsidian_bridge import ObsidianBridge
+from god_stack.utils.obsidian_bridge import ObsidianBridge
 
 TMP_SRC = "/tmp/delta_src"
 TMP_DEST = "/tmp/delta_dest"

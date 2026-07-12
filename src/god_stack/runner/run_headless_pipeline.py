@@ -6,10 +6,10 @@ from datetime import datetime
 import time
 
 # Core Framework Modules
-from god_engine import GodEngineNode
-from engine_extension_core import DynamicRateLimiter, DataSanitizer, PayloadLedger
-from telemetry_monitor import TelemetryMonitor
-from matrix_pool_loader import MatrixPoolLoader
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.core.engine_extension_core import DynamicRateLimiter, DataSanitizer, PayloadLedger
+from god_stack.telemetry.telemetry_monitor import TelemetryMonitor
+from god_stack.core.matrix_pool_loader import MatrixPoolLoader
 
 async def run_headless_system():
     print("\033[0;35m[INIT] Starting Headless G.O.D. Stack Extraction Loop...\033[0m")

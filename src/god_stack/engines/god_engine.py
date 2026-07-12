@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Dict, Any, Optional
-from parsers.html_parser import parse_html, MAX_PAYLOAD_BYTES
+from god_stack.parsers.html_parser import parse_html, MAX_PAYLOAD_BYTES
 
 logging.basicConfig(
     level=logging.INFO,

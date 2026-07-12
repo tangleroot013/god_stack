@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import logging
-from url_sanitizer import UrlSanitizer
+from god_stack.network.url_sanitizer import UrlSanitizer
 
 logger = logging.getLogger("PrometheusExporter")
 

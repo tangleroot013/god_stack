@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import List
-from utils.redis_worker import RedisWorker
+from god_stack.utils.redis_worker import RedisWorker
 
 class WorkerPool:
     """Orchestrates a cluster of concurrent worker nodes with fault recovery."""

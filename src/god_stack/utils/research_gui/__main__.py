@@ -1,4 +1,4 @@
-from utils.research_gui import GodResearchGUI
+from god_stack.utils.research_gui import GodResearchGUI
 import tkinter as tk
 
 if __name__ == "__main__":

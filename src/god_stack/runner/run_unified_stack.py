@@ -1,11 +1,11 @@
 import asyncio
 import logging
-from frontier_manager import Frontier
-from url_sanitizer import UrlSanitizer
-from scavenger import ProxyScavenger
-from god_scraper import GodScraper
-from connection_pool import HttpPool
-from parsers.html_parser import parse_html
+from god_stack.core.frontier_manager import Frontier
+from god_stack.network.url_sanitizer import UrlSanitizer
+from god_stack.core.scavenger import ProxyScavenger
+from god_stack.data.god_scraper import GodScraper
+from god_stack.network.connection_pool import HttpPool
+from god_stack.parsers.html_parser import parse_html
 
 logging.basicConfig(
     level=logging.INFO,

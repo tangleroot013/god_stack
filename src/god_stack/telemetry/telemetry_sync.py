@@ -4,7 +4,7 @@ import sys
 # Import shared structures directly from existing project files
 try:
     sys.path.append('.')
-    from metrics_exporter import SYSTEM_METRICS
+    from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 except ImportError:
     # Failback array declaration if executed cleanly out of tree bounds
     SYSTEM_METRICS = {"god_stack_ingestion_attempts_total": 0, "god_stack_ingestion_success_total": 0}

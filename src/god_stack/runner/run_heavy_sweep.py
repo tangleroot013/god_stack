@@ -2,8 +2,8 @@
 import os
 import json
 import asyncio
-from god_scraper import GodScraper
-from metrics_exporter import start_telemetry_server
+from god_stack.data.god_scraper import GodScraper
+from god_stack.telemetry.metrics_exporter import start_telemetry_server
 
 JSON_PATH = "config/target_urls.json"
 

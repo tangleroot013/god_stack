@@ -3,7 +3,7 @@ import os
 import json
 import asyncio
 import logging
-from orchestrator import GodOrchestrator
+from god_stack.core.orchestrator import GodOrchestrator
 
 logging.basicConfig(
     level=logging.INFO,

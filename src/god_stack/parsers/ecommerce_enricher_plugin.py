@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
-from core.base_extension import BaseExtension
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.core.base_extension import BaseExtension
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 logger = logging.getLogger("EcommerceEnricher")
 

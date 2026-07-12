@@ -1,8 +1,8 @@
 import pytest
 import os
 import shutil
-from utils.cookie_spoofer import CookieSpoofer
-from utils.stealth_manager import StealthManager
+from god_stack.utils.cookie_spoofer import CookieSpoofer
+from god_stack.utils.stealth_manager import StealthManager
 
 TMP_SESSIONS = "/tmp/god_sessions"
 

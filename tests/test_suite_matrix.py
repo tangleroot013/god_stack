@@ -2,8 +2,8 @@
 import unittest
 import asyncio
 import time
-from metrics_exporter import SYSTEM_METRICS
-from unified_production_core import StreamlinedGodScraper
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
+from god_stack.core.unified_production_core import StreamlinedGodScraper
 
 class TestGodStackCoreEngine(unittest.TestCase):
     

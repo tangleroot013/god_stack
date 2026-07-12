@@ -8,10 +8,10 @@ import logging
 import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from matrix_storage import MatrixStorage
+from god_stack.data.matrix_storage import MatrixStorage
 from scavenger import ProxyScavenger
-from god_scraper import GodScraper
-from url_sanitizer import UrlSanitizer
+from god_stack.data.god_scraper import GodScraper
+from god_stack.network.url_sanitizer import UrlSanitizer
 
 logging.basicConfig(
     level=logging.INFO,

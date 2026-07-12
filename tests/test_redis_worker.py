@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
-from utils.redis_worker import RedisWorker
+from god_stack.utils.redis_worker import RedisWorker
 
 @pytest.mark.asyncio
 @patch("utils.queue_manager.RedisQueueManager.task_complete")

@@ -6,8 +6,8 @@ import sys
 import time
 import json
 import logging
-from parsers.dom_parser import HardenedDOMParser
-from data_alchemist import DataAlchemist
+from god_stack.parsers.dom_parser import HardenedDOMParser
+from god_stack.data.data_alchemist import DataAlchemist
 
 LOG_FILE = "logs/daemon_orchestrator.log"
 METRICS_FILE = "metrics/pipeline_stats.json"

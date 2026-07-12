@@ -9,11 +9,11 @@ import time
 from datetime import datetime
 
 # Core imports
-from god_engine import GodEngineNode
-from god_scraper import GodScraper
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.data.god_scraper import GodScraper
 
 # Upgrade Framework imports
-from engine_extension_core import DynamicRateLimiter, DataSanitizer, PayloadLedger
+from god_stack.core.engine_extension_core import DynamicRateLimiter, DataSanitizer, PayloadLedger
 
 class GodStackBatchGui:
     def __init__(self, root):

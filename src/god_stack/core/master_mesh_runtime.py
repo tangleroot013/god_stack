@@ -4,9 +4,9 @@ import logging
 import inspect
 from typing import List, Optional, Set
 
-from god_scraper import GodScraper
-from god_engine import GodEngineNode
-from metrics_exporter import start_telemetry_server, increment_metric
+from god_stack.data.god_scraper import GodScraper
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.telemetry.metrics_exporter import start_telemetry_server, increment_metric
 
 logging.basicConfig(
     level=logging.INFO,

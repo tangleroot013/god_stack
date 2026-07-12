@@ -3,7 +3,7 @@ import glob
 import importlib.util
 import logging
 from typing import List, Dict, Any
-from core.base_extension import BaseExtension
+from god_stack.core.base_extension import BaseExtension
 
 logging.basicConfig(
     level=logging.INFO,

@@ -2,7 +2,7 @@ import pytest
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
-from utils.session_injector import SessionInjector
+from god_stack.utils.session_injector import SessionInjector
 
 TMP_SESSION_DIR = Path("/tmp/test_sessions_vault")
 

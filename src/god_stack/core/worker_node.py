@@ -9,9 +9,9 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, List
 
-from core.extension_loader import ExtensionLoader
-from god_engine import GodEngineNode
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.core.extension_loader import ExtensionLoader
+from god_stack.engines.god_engine import GodEngineNode
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 logging.basicConfig(
     level=logging.INFO,

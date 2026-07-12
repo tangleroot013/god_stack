@@ -1,7 +1,7 @@
 import pytest
 import time
 from pathlib import Path
-from utils.search_ledger import SearchLedger
+from god_stack.utils.search_ledger import SearchLedger
 
 TMP_VAULT = Path("/tmp/test_timestamp_vault")
 

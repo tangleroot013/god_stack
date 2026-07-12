@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from utils.courlan_router import CourlanRouter
+from god_stack.utils.courlan_router import CourlanRouter
 # ==============================================================================
 # G.O.D. STACK V2.0.0 HIGH-AVAILABILITY PRODUCTION CORE: OPTIONS 4 & 6 INTEGRATION
 # ==============================================================================

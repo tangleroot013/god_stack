@@ -1,8 +1,8 @@
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, patch
-from god_scraper import GodScraper
-from metrics_exporter import SYSTEM_METRICS
+from god_stack.data.god_scraper import GodScraper
+from god_stack.telemetry.metrics_exporter import SYSTEM_METRICS
 
 @pytest.fixture(autouse=True)
 def reset_metrics():

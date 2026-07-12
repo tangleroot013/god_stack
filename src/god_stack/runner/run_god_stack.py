@@ -6,9 +6,9 @@
 import asyncio
 import logging
 from scavenger import ProxyScavenger
-from url_sanitizer import UrlSanitizer
+from god_stack.network.url_sanitizer import UrlSanitizer
 # Assuming god_engine is patched to accept proxies in its matrix
-from god_engine import GodEngine 
+from god_stack.engines.god_engine import GodEngine 
 
 logging.basicConfig(level=logging.WARNING) # Suppress lower level logs for clean UI
 logger = logging.getLogger("MasterOrchestrator")

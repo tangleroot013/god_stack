@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import pytest
-from courlan_router import CourlanRouter
-from url_sanitizer import UrlSanitizer
-from frontier_manager import FrontierManager
+from god_stack.network.courlan_router import CourlanRouter
+from god_stack.network.url_sanitizer import UrlSanitizer
+from god_stack.core.frontier_manager import FrontierManager
 
 @pytest.mark.parametrize(
     "raw_url,expected_canonical",
