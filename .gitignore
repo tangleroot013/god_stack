@@ -25,3 +25,34 @@ upgrade_god_stack.py
 *.log
 *.csv
 *.bak
+.env.local
+
+# Local State & VFS Protection Matrix
+god_stack_vfs.db
+god_stack_vfs.db-journal
+god_stack_vfs.db-wal
+config/backups/*.bak
+outputs/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Test cache
+.pytest_cache/
+.tox/

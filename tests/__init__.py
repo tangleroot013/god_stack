@@ -27,3 +27,4 @@ exceptions_mock.ConnectionClosed = ConnectionClosed
 ws_mock.exceptions = exceptions_mock
 sys.modules["websockets.exceptions"] = exceptions_mock
 sys.modules["websockets"] = ws_mock
+"""Test suite for G.O.D. Stack."""
