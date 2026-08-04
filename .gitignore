@@ -25,3 +25,6 @@ upgrade_god_stack.py
 *.log
 *.csv
 *.bak
+
+# one-off local setup/fix scripts -- never tracked
+/*.sh
