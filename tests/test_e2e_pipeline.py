@@ -4,8 +4,8 @@ import json
 import shutil
 from pathlib import Path
 from aiohttp import web, ClientSession
-from utils.queue_manager import RedisQueueManager
-from api.obsidian_webhook import ObsidianWebhook
+from god_stack.utils.queue_manager import RedisQueueManager
+from god_stack.api.obsidian_webhook import ObsidianWebhook
 
 TMP_VAULT_DIR = Path("/tmp/god_stack_e2e_vault")
 

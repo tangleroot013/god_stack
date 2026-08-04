@@ -1,10 +1,10 @@
 import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
-from utils.redis_worker import RedisWorker
+from god_stack.utils.redis_worker import RedisWorker
 
 @pytest.mark.asyncio
-@patch("utils.queue_manager.RedisQueueManager.add_target")
+@patch("god_stack.utils.queue_manager.RedisQueueManager.add_target")
 async def test_exponential_backoff_pathway(mock_add):
     # Set base_delay to 0 for instantaneous test evaluation
     worker = RedisWorker(worker_id="test-retry-node", max_retries=2, base_delay=0.0)

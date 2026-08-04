@@ -1,6 +1,6 @@
 import pytest
 from aiohttp import web
-from daemon_core import DaemonCore
+from god_stack.core.daemon_core import DaemonCore
 
 @pytest.mark.asyncio
 async def test_health_endpoint_response_format(aiohttp_client):

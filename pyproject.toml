@@ -1,4 +1,19 @@
 [build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "god_stack"
+version = "1.0.0"
+description = "Matrix Orchestration Framework"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[project.scripts]
+godctl = "god_stack.cli.godctl:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 

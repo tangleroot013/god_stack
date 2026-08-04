@@ -1,5 +1,5 @@
 import pytest
-from utils.metrics_exporter import MetricsExporter, ERROR_RATIO
+from god_stack.utils.metrics_exporter import MetricsExporter, ERROR_RATIO
 
 def test_granular_error_labels():
     exporter = MetricsExporter(port=9998)

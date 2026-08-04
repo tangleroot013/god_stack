@@ -1,0 +1,27 @@
+{
+  "title": "G.O.D. Stack Operations Matrix",
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Total Ingestion Successes",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "god_stack_ingestion_success_total", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null } ] } }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ingestion vs Skips Rate (5m)",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "rate(god_stack_ingestion_success_total[5m])", "legendFormat": "Success Rate", "refId": "A" },
+        { "expr": "rate(god_stack_deduplication_skips_total[5m])", "legendFormat": "Dedup Skips", "refId": "B" }
+      ]
+    }
+  ]
+}

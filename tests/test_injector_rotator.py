@@ -2,8 +2,8 @@ import json
 import os
 import pytest
 from unittest.mock import MagicMock
-from utils.log_rotator import get_logger
-from utils.session_injector import SessionInjector
+from god_stack.utils.log_rotator import get_logger
+from god_stack.utils.session_injector import SessionInjector
 
 TMP_COOKIE_FILE = "/tmp/test_session_cookies.json"
 

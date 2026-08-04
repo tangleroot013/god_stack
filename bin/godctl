@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BLUE="\033[1;34m"
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+RED="\033[1;31m"
+RESET="\033[0m"
+
+show_help() {
+    echo -e "${BLUE}G.O.D. Stack Open Unified CLI Controller Subsystem${RESET}"
+    echo "Usage: ./godctl [command] [args]"
+    echo ""
+    echo "Core Management Operations:"
+    echo "  start           Spins up the unified production stack matrix runloop"
+    echo "  test            Executes the integrated asynchronous batch test suite"
+    echo "  metrics         Polls real-time counter metrics from local exposition endpoints"
+    echo "  deploy [name]   Triggers a specific micro-deployment component layer"
+    echo "  list-deploy     Lists all sub-deployment layers found in scripts/deploy/"
+    echo "  clean           Wipes local __pycache__ tree junk and transient cache debris"
+}
+
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+fi
+
+COMMAND="${1:-help}"
+
+case "$COMMAND" in
+    start)
+        echo -e "${GREEN}[+] Invoking production matrix runloop...${RESET}"
+        python3 run_unified_production_stack.py
+        ;;
+    test)
+        echo -e "${YELLOW}[*] Executing integrated batch test suites...${RESET}"
+        bash run_and_commit_batch.sh
+        ;;
+    metrics)
+        echo -e "${BLUE}[📊 Telemetry Edge] Fetching active counters...${RESET}"
+        curl -s http://localhost:8000/metrics || echo -e "${RED}[-] Telemetry exporter endpoint offline.${RESET}"
+        ;;
+    deploy)
+        TARGET_MODULE="${2:-}"
+        if [ -z "$TARGET_MODULE" ]; then
+            echo -e "${RED}[-] Error: Specify a target deployment component module.${RESET}"
+            exit 1
+        fi
+        SCRIPT_PATH="scripts/deploy/deploy_${TARGET_MODULE}.sh"
+        if [ -f "$SCRIPT_PATH" ]; then
+            echo -e "${GREEN}[+] Executing component deployment: ${TARGET_MODULE}${RESET}"
+            bash "$SCRIPT_PATH"
+        else
+            echo -e "${RED}[-] Component script not located: ${SCRIPT_PATH}${RESET}"
+            exit 1
+        fi
+        ;;
+    list-deploy)
+        echo -e "${BLUE}Available Micro-Deployment Modules:${RESET}"
+        ls -1 scripts/deploy/ | sed 's/deploy_//g' | sed 's/\.sh//g' | awk '{print "  • " $0}'
+        ;;
+    clean)
+        echo -e "${YELLOW}[*] Cleaning transient workspace debris...${RESET}"
+        find . -type d -name "__pycache__" -exec rm -rf {} +
+        find . -type f -name "*.pyc" -delete
+        echo -e "${GREEN}[SUCCESS] Tree sanitized cleanly.${RESET}"
+        ;;
+    *)
+        show_help
+        ;;
+esac

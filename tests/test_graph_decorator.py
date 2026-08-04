@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from api.obsidian_graph_decorator import GraphDecorator
+from god_stack.api.obsidian_graph_decorator import GraphDecorator
 
 TMP_VAULT = Path("/tmp/test_decorator_vault")
 
