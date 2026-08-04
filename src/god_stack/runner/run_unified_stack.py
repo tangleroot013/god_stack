@@ -31,7 +31,8 @@ class UnifiedExecutionMatrix:
                 valid_pool.append(normalized)
         self.sanitized_urls = valid_pool
         
-        Frontier().enqueue_batch(urls=self.sanitized_urls)
+        for target in self.sanitized_urls:
+            Frontier.add_url(target)
         logger.info(f"[SANITIZER] Target alignment complete. Secured {len(self.sanitized_urls)} production routes.")
 
     async def bootstrap(self):
@@ -44,7 +45,7 @@ class UnifiedExecutionMatrix:
         loop = asyncio.get_running_loop()
 
         while not self.shutdown_event.is_set():
-            url = Frontier().dequeue()
+            url = Frontier.get_next()
             if not url:
                 logger.info("Frontier target queues depleted. Pausing runtime loops.")
                 break
@@ -63,10 +64,10 @@ class UnifiedExecutionMatrix:
             
             # Feed newly discovered extraction pipeline links directly back into the dynamic frontier manager
             if extracted_data['links']:
-                Frontier.enqueue_batch(extracted_data['links'])
+                for link in extracted_data['links']:
+                    Frontier.add_url(link)
 
-            stats = Frontier.stats()
-            logger.info(f"[METRICS] Live Stats Matrix Queue Depth: {stats['queue_depth']} | Dequeue Operations: {stats['frontier.dequeue']}")
+            logger.info(f"[METRICS] Live Stats Matrix Queue Depth: {Frontier.size()}")
             
             await asyncio.sleep(0.01)
 

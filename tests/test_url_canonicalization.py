@@ -30,8 +30,9 @@ def test_frontier_deduplication_engine():
         "news.ycombinator.com/item?id=99"
     ]
     
-    frontier.enqueue_batch(dirty_matrix)
+    for target in dirty_matrix:
+        frontier.add_url(UrlSanitizer.normalize(target))
     
     # Verify exactly 1 target was enqueued despite structural discrepancies
-    assert len(frontier.seen_urls) == 1
-    assert frontier.stats()["frontier.enqueue"] == 1
+    assert len(frontier.visited) == 1
+    assert frontier.size() == 1

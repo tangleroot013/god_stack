@@ -106,7 +106,14 @@ class MatrixStorage:
         logger.info(f"Payload transaction secured. Primary Key ID: [ {row_id} ] ({density} bytes encoded)")
         return row_id
 
+    def _sync_check_url_exists(self, url: str) -> bool:
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
+                "SELECT 1 FROM crawl_jobs WHERE target_url = ? "
+                "UNION SELECT 1 FROM scraped_payloads WHERE target_url = ? LIMIT 1;",
+                (url, url)
+            )
+            return cursor.fetchone() is not None
+
     async def check_url_exists(self, url: str) -> bool:
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT 1 FROM crawl_jobs WHERE target_url = ? UNION SELECT 1 FROM scraped_payloads WHERE url = ? LIMIT 1;", (url, url))
-        return cursor.fetchone() is not None
+        return await asyncio.to_thread(self._sync_check_url_exists, url)

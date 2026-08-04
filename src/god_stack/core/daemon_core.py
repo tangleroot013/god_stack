@@ -265,12 +265,3 @@ class DaemonCore:
         )
         while True:
             await asyncio.sleep(1)
-
-    async def main_loop(self, *args, **kwargs):
-        """Resilient variadic fallback mapping routing vectors to the active loop."""
-        if hasattr(self, 'invoke_pipeline_matrix'):
-            return await self.invoke_pipeline_matrix(*args, **kwargs)
-        elif hasattr(self, 'run'):
-            return await self.run(*args, **kwargs)
-        else:
-            raise AttributeError("DaemonCore contains no viable execution loop entrypoint.")

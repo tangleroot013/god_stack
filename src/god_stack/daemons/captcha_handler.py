@@ -23,11 +23,3 @@ class CaptchaHandler:
             return "cloudflare"
             
         return "clean"
-
-# Mirror legacy utility location compatibility if necessary
-import os
-if not os.path.exists('utils'):
-    os.makedirs('utils')
-
-with open('utils/captcha_handler.py', 'w') as f:
-    f.write('''from captcha_handler import CaptchaHandler''')
